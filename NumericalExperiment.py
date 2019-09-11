@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 log.addHandler(fh)
 
-def GenerateGrid(n, seed=DEFAULT_SEEDS[0], silent=True):
+def GenerateGrid(n, seed=DEFAULT_SEEDS[0]):
     log.info(f"Begingrid {n}x{n} with seed {seed}")
 
     np.random.seed(seed)
@@ -41,16 +41,13 @@ def GetEnergy(grid):
 def GetAverageEnergy(grid):
     return GetEnergy(grid) / grid.size
 
-def GetAverageMomentum(grid):
+def GetAverageMagnetization(grid):
     momentum = np.average(grid)
     momentum = 2.0 * momentum - 1.0
 
     return momentum
 
 def DoOneChange(grid, reducedTemperature):
-    #coordArr = []
-    #for coord in grid.shape:
-    #    coordArr += [random.randint(0, coord)]
     coordRow = random.randint(0, grid.shape[0])
     coordCol = random.randint(0, grid.shape[1])
     #print("At ({:}, {:}): {}".format(coordRow, coordCol,
@@ -66,8 +63,6 @@ def DoOneChange(grid, reducedTemperature):
 
     if accept:
         grid[coordRow, coordCol] = not grid[coordRow, coordCol]
-        #plt.imshow(grid, clim=(0, 1))
-        #plt.show()
 
 def Test1():
     gr = GenerateGrid(50)
@@ -75,6 +70,21 @@ def Test1():
     plt.show()
     for i in range(25000):
         DoOneChange(gr, 1.0e0)
+    ShowGrid(gr)
+    
+def Test2():
+    gr = GenerateGrid(200)
+    #plt.imshow(gr)
+    plt.show()
+    for i in range(2500000):
+        DoOneChange(gr, 0.5)
+    ShowGrid(gr)
+    GetAverageEnergy(gr)
+    GetAverageMagnetization(gr)
+    
+    
+    for i in range(1000000):
+        DoOneChange(gr, 0.5)
     ShowGrid(gr)
 
 def ShowGrid(grid):
@@ -116,7 +126,7 @@ def Exp2_6_2():
             DoOneChange(gr, reducedTemperature)
             numberOfAttempts += 1
         log.info(f"At attempts {numberOfAttempts}")
-        log.info("Average momentum: {}".format(GetAverageMomentum(gr)))
+        log.info("Average momentum: {}".format(GetAverageMagnetization(gr)))
         log.info("Average energy: {}".format(GetAverageEnergy(gr)))
         ShowGrid(gr)
 
@@ -131,7 +141,7 @@ def Exp2_6_3():
             DoOneChange(gr, reducedTemperature)
             numberOfAttempts += 1
         log.info(f"At attempts {numberOfAttempts}")
-        log.info("Average momentum: {}".format(GetAverageMomentum(gr)))
+        log.info("Average momentum: {}".format(GetAverageMagnetization(gr)))
         log.info("Average energy: {}".format(GetAverageEnergy(gr)))
         ShowGrid(gr)
 
@@ -151,7 +161,7 @@ def Exp2_6_4():
             DoOneChange(gr, reducedTemperature)
             numberOfAttempts += 1
         log.info(f"At attempts {numberOfAttempts}")
-        log.info("Average momentum: {}".format(GetAverageMomentum(gr)))
+        log.info("Average momentum: {}".format(GetAverageMagnetization(gr)))
         log.info("Average energy: {}".format(GetAverageEnergy(gr)))
         ShowGrid(gr)
 
@@ -179,10 +189,10 @@ def Exp2_6_5():
                 DoOneChange(gr, reducedTemperature)
                 numberOfAttempts += 1
             print(f"At attempts {numberOfAttempts}")
-            print("Average momentum: {}".format(GetAverageMomentum(gr)))
+            print("Average momentum: {}".format(GetAverageMagnetization(gr)))
             print("Average energy: {}".format(GetAverageEnergy(gr)))
             ShowGrid(gr)
-
+            
 def GenerateSeries():
     grid = GenerateGrid(200, DEFAULT_SEEDS[0], silent=True)
     T_red = 0.5
@@ -210,4 +220,4 @@ def AnimateSeries():
                                 repeat_delay=0)
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
-    
+
