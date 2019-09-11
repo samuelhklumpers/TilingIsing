@@ -14,6 +14,7 @@ import logging
 import pickle
 import os
 import sys
+import queue
 
 DEFAULT_SEEDS = [2019090814]
 
@@ -30,7 +31,7 @@ class Grid:
 
         np.random.seed(seed)
         self.grid = 2 * random.randint(0, 2, size=(n, n), dtype=np.int8) - 1
-        self.T_red = T_red
+        self.T_red = np.float64(T_red)
 
     def getEnergy(self):
         mult = np.roll(self.grid, 1, axis=0) + np.roll(self.grid, -1, axis=0) + np.roll(self.grid, 1, axis=1) + np.roll(self.grid, -1, axis=1)
@@ -69,6 +70,49 @@ class Grid:
 
         if accept:
             self.grid[coordRow, coordCol] *= -1
+
+    def wolffStep(self):
+        prev_err = np.seterr(all='ignore')
+        neighbours = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+        
+        i = random.randint(0, self.grid.shape[0])
+        j = random.randint(0, self.grid.shape[1])
+
+        dE = self.getFlipDiff(i, j)
+        p_start = np.exp(-dE / self.T_red)
+
+        if random.rand() > p_start:
+            return
+
+        val0 = self.grid[i, j]
+        beta = 1 / self.T_red
+        p = 1 - np.exp(-beta)
+
+        visited = np.full(self.grid.shape, 1, dtype=np.int8)
+        q = queue.Queue()
+        q.put((i, j))
+        visited[(i, j)] = -1
+
+        while not q.empty():
+            l = q.get()
+
+            for dl in neighbours:
+                l2 = (l[0] + dl[0], l[1] + dl[1])
+                l2 = (l2[0] % self.grid.shape[0], l2[1] % self.grid.shape[1])
+                
+                if visited[l2] < 0:
+                    continue
+
+                if self.grid[l] != self.grid[l2]:
+                    continue
+                
+                if random.rand() < p:
+                    visited[l2] = -1
+                    q.put(l2)
+
+        self.grid *= visited
+        
+        np.seterr(**prev_err)
             
     def show(self):
         plt.figure()
@@ -271,3 +315,19 @@ def PhaseTransition():
     plt.legend()
     plt.show(block=False)
 
+def CreateSeriesWolff():
+    grid = Grid(1000, 1.0, DEFAULT_SEEDS[0])
+
+    ims = []
+    fig = plt.figure()
+    
+    for i in range(100):
+        for j in range(10):
+            grid.wolffStep()
+
+        ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
+        
+    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
+                                repeat_delay=0)
+
+    ani.save("series.gif", writer=PillowWriter(fps=10))
