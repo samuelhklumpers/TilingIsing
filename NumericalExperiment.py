@@ -64,8 +64,11 @@ class Grid:
             
     def show(self):
         plt.figure()
-        plt.imshow(self.grid, clim=(0, 1))
+        self.plotGrid(axis=plt.gca())
         plt.show(block=False)
+        
+    def plot(self, axis, **kwargs):
+        axis.imshow(self.grid, clim=(0, 1), **kwargs)
 
 def Test1():
     gr = Grid(50, 1.0e0)
@@ -152,31 +155,38 @@ def Exp2_6_4():
         gr.show()
 
 def Exp2_6_5():
-    print("  2.6.5. .\n")
-
-    print("Different initial configurations reach patchy configurations, but "
-          + "due to the random nature, no one is alike.")
+    print("  2.6.5.\n")
+        
+    print("Different initial configurations reach patchlike configurations, but "
+          + "due to the random nature, no one is alike. Entropy decreases from "
+          + "the first to the second step, but between the third and last, this "
+          + "is doesn't seem to hold.")
 
     np.random.seed(DEFAULT_SEEDS[0])
 
     seeds = np.random.randint(2**30, size=(5,))
-    attempts = [100, 1000, 25000]#[1e1, 1e2, 1e3, 1e4, 25000]
-
+    attempts = [100, 1000, 25000, 100000]
+    
     for i in range(0, len(seeds)):
         seed = seeds[i]
-        gr = Grid(20, 3.0, seed)
+        gr = Grid(20, 3.0, seed=seed)
         numberOfAttempts = 0
 
+        f, ax = plt.subplots(nrows=1, ncols=len(attempts), sharey=True)
+        
+        print(f"With seed {seed}")
+        
         for j in range(0, len(attempts)):
             att = attempts[j]
             while numberOfAttempts < att:
                 gr.metroStep()
                 numberOfAttempts += 1
-                
-            print(f"At attempts {numberOfAttempts}")
-            print("Average momentum: {}".format(gr.getAverageMagnetization()))
-            print("Average energy: {}".format(gr.getAverageEnergy()))
-            gr.show()
+            #print(f"At attempts {numberOfAttempts}")
+            #print("Average momentum: {}".format(GetAverageMomentum(gr)))
+            #print("Average energy: {}".format(GetAverageEnergy(gr)))
+            ax[j].set_title(f"At {numberOfAttempts} \nattempts")
+            gr.plot(axis=ax[j])
+        plt.show()
             
 def GenerateSeries():
     grid = Grid(200, 0.5, DEFAULT_SEEDS[0])
