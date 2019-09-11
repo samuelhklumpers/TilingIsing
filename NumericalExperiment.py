@@ -13,137 +13,123 @@ from matplotlib.animation import PillowWriter
 import logging
 import pickle
 import os
+import sys
 
 DEFAULT_SEEDS = [2019090814]
 
 fh = logging.FileHandler("log.txt", mode="w")
+stdout_handle = logging.StreamHandler(sys.stdout)
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 log.addHandler(fh)
+log.addHandler(stdout_handle)
 
-def GenerateGrid(n, seed=DEFAULT_SEEDS[0]):
-    log.info(f"Begingrid {n}x{n} with seed {seed}")
+class Grid:
+    def __init__(self, n, T_red, seed=DEFAULT_SEEDS[0]):
+        log.info(f"Generate grid {n}x{n} with seed {seed}")
 
-    np.random.seed(seed)
-    randomInts = random.randint(0, 2, size=(n, n), dtype=bool)
+        np.random.seed(seed)
+        self.grid = 2 * random.randint(0, 2, size=(n, n), dtype=np.int8) - 1
+        self.T_red = T_red
 
-    return randomInts
+    def getEnergy(self):
+        mult = np.roll(self.grid, 1, axis=0) + np.roll(self.grid, -1, axis=0) + np.roll(self.grid, 1, axis=1) + np.roll(self.grid, -1, axis=1)
+        
+        val = -np.sum(self.grid * mult)
+        
+        return val
 
-def GetEnergy(grid):
-    grid = 2 * grid - 1 
-    
-    mult = np.roll(grid, 1, axis=0) + np.roll(grid, -1, axis=0) + np.roll(grid, 1, axis=1) + np.roll(grid, -1, axis=1)
-    
-    val = -np.sum(grid * mult)
-    
-    return val
+    def getAverageEnergy(self):
+        return self.getEnergy() / self.grid.size
 
-def GetAverageEnergy(grid):
-    return GetEnergy(grid) / grid.size
+    def getAverageMagnetization(self):
+        return np.average(self.grid)
 
-def GetAverageMagnetization(grid):
-    momentum = np.average(grid)
-    momentum = 2.0 * momentum - 1.0
+    def metroStep(self):
+        coordRow = random.randint(0, self.grid.shape[0])
+        coordCol = random.randint(0, self.grid.shape[1])
+        
+        energy = self.getEnergy()
+        self.grid[coordRow, coordCol] *= -1
+        energyDiff = self.getEnergy() - energy
 
-    return momentum
+        accept = True
+        if energyDiff > 0.0:
+            chance = np.exp(-energyDiff / self.T_red) \
+                        if self.T_red != 0 else 0.0
+            accept = random.random() < chance
 
-def DoOneChange(grid, reducedTemperature):
-    coordRow = random.randint(0, grid.shape[0])
-    coordCol = random.randint(0, grid.shape[1])
-    #print("At ({:}, {:}): {}".format(coordRow, coordCol,
-    #           grid[coordRow, coordCol]))
-    energy = GetEnergy(grid)
-    energyDiff = -2 * energy
-
-    accept = True
-    if energyDiff > 0.0:
-        chance = np.exp(-energyDiff / reducedTemperature) \
-                    if reducedTemperature != 0 else 0.0
-        accept = random.random() < chance
-
-    if accept:
-        grid[coordRow, coordCol] = not grid[coordRow, coordCol]
+        if not accept:
+            self.grid[coordRow, coordCol] *= -1
+            
+    def show(self):
+        plt.figure()
+        plt.imshow(self.grid, clim=(0, 1))
+        plt.show(block=False)
 
 def Test1():
-    gr = GenerateGrid(50)
-    #plt.imshow(gr)
-    plt.show()
+    gr = Grid(50, 1.0e0)
+    
     for i in range(25000):
-        DoOneChange(gr, 1.0e0)
-    ShowGrid(gr)
+        gr.metroStep()
+        
+    gr.show()
     
 def Test2():
-    gr = GenerateGrid(200)
-    #plt.imshow(gr)
-    plt.show()
-    for i in range(2500000):
-        DoOneChange(gr, 0.5)
-    ShowGrid(gr)
-    GetAverageEnergy(gr)
-    GetAverageMagnetization(gr)
+    gr = Grid(200, 0.5)
     
+    for i in range(2500000):
+        gr.metroStep()
+        
+    gr.show()
+    print(gr.getAverageEnergy(), gr.getAverageMagnetization())
     
     for i in range(1000000):
-        DoOneChange(gr, 0.5)
-    ShowGrid(gr)
-
-def ShowGrid(grid):
-    plt.figure()
-
-    #ticks = np.append(np.arange(0, grid.shape[0] - 1, grid.shape[0] // 5), [grid.shape[0]])
-    #print(ticks)
-
-    #plt.yticks(ticks)
-    #plt.ylim((0, grid.shape[0]))
-
-    #plt.xticks(np.arange(0, grid.shape[0], 2))
-    plt.imshow(grid, clim=(0, 1))
-    plt.show(block=False)
-
+        gr.metroStep()
+    
+    gr.show()
 
 def Exp2_6_1():
-    gr = GenerateGrid(20)
+    gr = Grid(20, 5.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 35000]
-    reducedTemperature = 5.0
 
     for att in attempts:
         while numberOfAttempts < att:
-            DoOneChange(gr, reducedTemperature)
+            gr.metroStep()
             numberOfAttempts += 1
 
         log.info(f"At attempts {numberOfAttempts}")
-        ShowGrid(gr)
+        gr.show()
 
 def Exp2_6_2():
-    gr = GenerateGrid(20)
+    gr = Grid(20, 10.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
-    reducedTemperature = 10.0
 
     for att in attempts:
         while numberOfAttempts < att:
-            DoOneChange(gr, reducedTemperature)
+            gr.metroStep()
             numberOfAttempts += 1
+            
         log.info(f"At attempts {numberOfAttempts}")
-        log.info("Average momentum: {}".format(GetAverageMagnetization(gr)))
-        log.info("Average energy: {}".format(GetAverageEnergy(gr)))
-        ShowGrid(gr)
+        log.info("Average momentum: {}".format(gr.getAverageMagnetization()))
+        log.info("Average energy: {}".format(gr.getAverageEnergy()))
+        gr.show()
 
 def Exp2_6_3():
-    gr = GenerateGrid(20)
+    gr = Grid(20, 0.5)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
-    reducedTemperature = 0.5
 
     for att in attempts:
         while numberOfAttempts < att:
-            DoOneChange(gr, reducedTemperature)
+            gr.metroStep()
             numberOfAttempts += 1
         log.info(f"At attempts {numberOfAttempts}")
-        log.info("Average momentum: {}".format(GetAverageMagnetization(gr)))
-        log.info("Average energy: {}".format(GetAverageEnergy(gr)))
-        ShowGrid(gr)
+        log.info("Average momentum: {}".format(gr.getAverageMagnetization()))
+        log.info("Average energy: {}".format(gr.getAverageEnergy()))
+        gr.show()
 
 def Exp2_6_4():
     print("  2.6.4. At reduced temperature 0.\n")
@@ -151,19 +137,19 @@ def Exp2_6_4():
     print("At T=0 it converges to plainly +1 or -1, so it is not that interesting.\n\
     Anyway:")
 
-    gr = GenerateGrid(20)
+    gr = Grid(20, 0.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
-    reducedTemperature = 0.0
 
     for att in attempts:
         while numberOfAttempts < att:
-            DoOneChange(gr, reducedTemperature)
+            gr.metroStep()
             numberOfAttempts += 1
+            
         log.info(f"At attempts {numberOfAttempts}")
-        log.info("Average momentum: {}".format(GetAverageMagnetization(gr)))
-        log.info("Average energy: {}".format(GetAverageEnergy(gr)))
-        ShowGrid(gr)
+        log.info("Average momentum: {}".format(gr.getAverageMagnetization()))
+        log.info("Average energy: {}".format(gr.getAverageEnergy()))
+        gr.show()
 
 def Exp2_6_5():
     print("  2.6.5. .\n")
@@ -178,31 +164,29 @@ def Exp2_6_5():
 
     for i in range(0, len(seeds)):
         seed = seeds[i]
-        gr = GenerateGrid(20, seed, silent=True)
+        gr = Grid(20, 3.0, seed)
         numberOfAttempts = 0
-
-        reducedTemperature = 3.0
 
         for j in range(0, len(attempts)):
             att = attempts[j]
             while numberOfAttempts < att:
-                DoOneChange(gr, reducedTemperature)
+                gr.metroStep()
                 numberOfAttempts += 1
+                
             print(f"At attempts {numberOfAttempts}")
-            print("Average momentum: {}".format(GetAverageMagnetization(gr)))
-            print("Average energy: {}".format(GetAverageEnergy(gr)))
-            ShowGrid(gr)
+            print("Average momentum: {}".format(gr.getAverageMagnetization()))
+            print("Average energy: {}".format(gr.getAverageEnergy()))
+            gr.show()
             
 def GenerateSeries():
-    grid = GenerateGrid(200, DEFAULT_SEEDS[0], silent=True)
-    T_red = 0.5
+    grid = Grid(200, 0.5, DEFAULT_SEEDS[0])
     
     for i in range(100):
         with open(f"series\\series{i:03}.dat", mode="wb") as f:
-            pickle.dump(grid, f)
+            pickle.dump(grid.grid, f)
         
-        for j in range(100000):
-            DoOneChange(grid, T_red)
+        for j in range(100):
+            grid.metroStep()
             
 def AnimateSeries():
     fig = plt.figure()
