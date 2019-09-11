@@ -2,3 +2,6 @@ log.txt
 test.py 
 series.gif 
 series/* 
+article/* 
+!article/article.pdf 
+!article/article.tex 
