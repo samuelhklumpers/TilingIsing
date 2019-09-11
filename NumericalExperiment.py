@@ -25,40 +25,23 @@ def GenerateGrid(n, seed=DEFAULT_SEEDS[0], silent=True):
 
     return randomInts
 
-def GetNearestNeighbours(coordRow, coordCol, rowWrap, colWrap):
-    ans = [((coordRow - 1 + rowWrap) % rowWrap, coordCol),
-           ((coordRow + 1) % rowWrap, coordCol),
-           (coordRow, (coordCol - 1 + colWrap) % colWrap),
-           (coordRow, (coordCol + 1) % colWrap)]
-    return ans
-
-def GetEnergy(grid, orientation, neighbours):
-    return 1.0 * np.sum([-1 if grid[a[0], a[1]] == orientation else 1
-                                       for a in neighbours])
-
-def GetAverageEnergy(grid):
-    energy = 0.0
-    for row in range(0, grid.shape[0]):
-        for col in range(0, grid.shape[1]):
-            neighb = GetNearestNeighbours(row, col, *grid.shape)
-            energy += GetEnergy(grid, grid[row, col], neighb)
-    return energy / (grid.shape[0] * grid.shape[1])
-
-def get_avg_energy(grid):
+def GetEnergy(grid):
     grid = 2 * grid - 1 
     
     mult = np.roll(grid, 1, axis=0) + np.roll(grid, -1, axis=0) + np.roll(grid, 1, axis=1) + np.roll(grid, -1, axis=1)
     
     val = -np.sum(grid * mult)
     
-    return val / grid.size
+    return val
+
+def GetAverageEnergy(grid):
+    return GetEnergy(grid) / grid.size
 
 def GetAverageMomentum(grid):
     momentum = np.average(grid)
     momentum = 2.0 * momentum - 1.0
 
     return momentum
-
 
 def DoOneChange(grid, reducedTemperature):
     #coordArr = []
@@ -68,8 +51,7 @@ def DoOneChange(grid, reducedTemperature):
     coordCol = random.randint(0, grid.shape[1])
     #print("At ({:}, {:}): {}".format(coordRow, coordCol,
     #           grid[coordRow, coordCol]))
-    neighb = GetNearestNeighbours(coordRow, coordCol, *grid.shape)
-    energy = GetEnergy(grid, grid[coordRow, coordCol], neighb)
+    energy = GetEnergy(grid)
     energyDiff = -2 * energy
 
     accept = True
@@ -199,4 +181,3 @@ def Exp2_6_5():
 
 grid = GenerateGrid(10, seed=10)
 print(GetAverageEnergy(grid))
-print(get_avg_energy(grid))
