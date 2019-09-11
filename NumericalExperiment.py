@@ -8,7 +8,11 @@ Created on Sun Sep  8 21:16:30 2019
 import numpy as np
 from numpy import random
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.animation import PillowWriter
 import logging
+import pickle
+import os
 
 DEFAULT_SEEDS = [2019090814]
 
@@ -196,7 +200,33 @@ def Exp2_6_5():
             print("Average momentum: {}".format(GetAverageMomentum(gr)))
             print("Average energy: {}".format(GetAverageEnergy(gr)))
             ShowGrid(gr)
+            
+def GenerateSeries():
+    grid = GenerateGrid(200, DEFAULT_SEEDS[0], silent=True)
+    T_red = 0.5
+    
+    for i in range(100):
+        with open(f"series\\series{i:03}.dat", mode="wb") as f:
+            pickle.dump(grid, f)
+        
+        for j in range(100000):
+            DoOneChange(grid, T_red)
+            
+def AnimateSeries():
+    fig = plt.figure()
+    
+    ims = []
+    i = 0
+    for fn in os.listdir("series\\"):
+        with open("series\\" + fn, mode="rb") as f:
+            grid = pickle.load(f)
+            
+        ims.append([plt.imshow(grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
+        i += 1
+        
+    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
+                                repeat_delay=0)
 
-grid = GenerateGrid(10, seed=10)
-print(GetAverageEnergy(grid))
-print(get_avg_energy(grid))
+    ani.save("series.gif", writer=PillowWriter(fps=10))
+
+    #plt.show()
