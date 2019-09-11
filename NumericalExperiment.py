@@ -38,6 +38,16 @@ class Grid:
         val = -np.sum(self.grid * mult)
         
         return val
+        
+    def getFlipDiff(self, i, j):
+        v = self.grid[i, j]
+        E = 0
+        neighbours = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+        
+        for offset in neighbours:
+            E += -v * self.grid.take(i + offset[0], mode="wrap", axis=0).take(j + offset[1], mode="wrap")
+            
+        return -2 * E
 
     def getAverageEnergy(self):
         return self.getEnergy() / self.grid.size
@@ -49,9 +59,7 @@ class Grid:
         coordRow = random.randint(0, self.grid.shape[0])
         coordCol = random.randint(0, self.grid.shape[1])
         
-        energy = self.getEnergy()
-        self.grid[coordRow, coordCol] *= -1
-        energyDiff = self.getEnergy() - energy
+        energyDiff = self.getFlipDiff(coordRow, coordCol)
 
         accept = True
         if energyDiff > 0.0:
@@ -59,7 +67,7 @@ class Grid:
                         if self.T_red != 0 else 0.0
             accept = random.random() < chance
 
-        if not accept:
+        if accept:
             self.grid[coordRow, coordCol] *= -1
             
     def show(self):
@@ -187,15 +195,15 @@ def Exp2_6_5():
             ax[j].set_title(f"At {numberOfAttempts} \nattempts")
             gr.plot(axis=ax[j])
         plt.show()
-            
+
 def GenerateSeries():
-    grid = Grid(200, 0.5, DEFAULT_SEEDS[0])
+    grid = Grid(50, 0.5, DEFAULT_SEEDS[0])
     
     for i in range(100):
         with open(f"series\\series{i:03}.dat", mode="wb") as f:
             pickle.dump(grid.grid, f)
-        
-        for j in range(100):
+    
+        for j in range(100000):
             grid.metroStep()
             
 def AnimateSeries():
@@ -215,3 +223,23 @@ def AnimateSeries():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
+def CreateSeries():
+    grid = Grid(60, 10, DEFAULT_SEEDS[0])
+
+    ims = []
+    fig = plt.figure()
+    
+    for i in range(100):
+        for j in range(100000):
+            grid.metroStep()
+
+        ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
+        grid.T_red -= 9.5 / 100
+        
+    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
+                                repeat_delay=0)
+
+    ani.save("series.gif", writer=PillowWriter(fps=10))
+
+import timeit
+print(timeit.timeit(CreateSeries, number=1))
