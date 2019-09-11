@@ -241,5 +241,33 @@ def CreateSeries():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
-import timeit
-print(timeit.timeit(CreateSeries, number=1))
+def PhaseTransition():
+    import scipy.ndimage.filters as filters
+    
+    grid = Grid(30, 10, DEFAULT_SEEDS[0])
+
+    T = []
+    E = []
+    m = []
+
+    for i in range(100):
+        grid.T_red = 10 - i / 10
+        T += [grid.T_red]
+        
+        for j in range(10000):
+            grid.metroStep()
+
+        E += [grid.getAverageEnergy()]
+        m += [grid.getAverageMagnetization()]
+
+    plt.figure()
+    plt.plot(T, filters.gaussian_filter1d(E, 5), label="E")
+    plt.legend()
+    plt.figure()
+    plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
+    plt.legend()
+    plt.figure()
+    plt.plot(T, m, label="m")
+    plt.legend()
+    plt.show(block=False)
+
