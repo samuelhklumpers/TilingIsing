@@ -266,6 +266,33 @@ def AnimateSeries():
                                 repeat_delay=0)
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
+    
+
+    
+def ShowAnimate(gridsize=300, redT = 5.0,
+                      frames=100, framechanges=300):
+    seed = random.seed(DEFAULT_SEEDS[0])
+    for i in range(20):
+        seed = random.randint(0, 1e9)
+    
+    fig, ax = plt.subplots(figsize=(15, 15))
+
+    grid = Grid(gridsize, redT, seed)
+    im = ax.imshow(grid.grid, clim=(0, 1))
+    
+    def update(frame):
+        for j in range(framechanges):
+            grid.wolffStep()
+        #im = ax.imshow(grid.grid, clim=(0, 1))
+        if True or (frame % 50) == 0:
+            frame = frame
+        im.set_data(grid.grid)
+        #plt.text(0.2, 0.2, frame)
+        return (im,)
+        
+    ani = animation.FuncAnimation(fig, update)#, frames=range(1000))    
+    plt.show()
+    return ani
 
 def CreateSeries():
     grid = Grid(60, 10, DEFAULT_SEEDS[0])
@@ -309,20 +336,22 @@ def PhaseTransition():
     plt.legend()
     plt.figure()
     plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
+    plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
     plt.legend()
     plt.figure()
     plt.plot(T, m, label="m")
     plt.legend()
     plt.show(block=False)
 
-def CreateSeriesWolff():
-    grid = Grid(1000, 1.0, DEFAULT_SEEDS[0])
+def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT = 1.0,
+                      frames=100, framechanges=100):
+    grid = Grid(gridsize, redT, DEFAULT_SEEDS[0])
 
     ims = []
-    fig = plt.figure()
+    fig = plt.figure(figsize=(15, 15))
     
-    for i in range(100):
-        for j in range(10):
+    for i in range(frames):
+        for j in range(framechanges):
             grid.wolffStep()
 
         ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
@@ -330,4 +359,6 @@ def CreateSeriesWolff():
     ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
                                 repeat_delay=0)
 
-    ani.save("series.gif", writer=PillowWriter(fps=10))
+    ani.save(seriesname, writer=PillowWriter(fps=10))
+
+animat = ShowAnimate()
