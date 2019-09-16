@@ -343,7 +343,7 @@ def PhaseTransition():
     plt.legend()
     plt.show(block=False)
 
-def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT = 1.0,
+def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
     grid = Grid(gridsize, redT, DEFAULT_SEEDS[0])
 
@@ -361,4 +361,43 @@ def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT = 1.0,
 
     ani.save(seriesname, writer=PillowWriter(fps=10))
 
-animat = ShowAnimate()
+def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
+    grid = Grid(n, redT)
+
+    prev_top = 4
+    prev_bot = -4
+
+    plt.figure()
+
+    E_axis = []
+
+    while True:
+        top = -4
+        bot = 4
+
+        E_axis += [grid.getAverageEnergy()]
+        
+        for i in range(sample_time):
+            E = grid.getAverageEnergy()
+
+            top = max(E, top)
+            bot = min(E, bot)
+            
+            grid.wolffStep()
+
+        if top > prev_top and bot < prev_bot:
+            for j in range(1):
+                for i in range(epoch_time):
+                    grid.wolffStep()
+
+                E_axis += [grid.getAverageEnergy()]
+                
+            plt.plot(list(range(len(E_axis))), E_axis)
+            plt.show(block=True)
+            
+            return grid
+
+        prev_top, prev_bot = top, bot
+
+        for i in range(epoch_time):
+            grid.wolffStep()
