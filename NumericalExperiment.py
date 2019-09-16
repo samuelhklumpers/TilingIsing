@@ -78,6 +78,18 @@ class Grid:
     def plot(self, axis, **kwargs):
         axis.imshow(self.grid, clim=(0, 1), **kwargs)
 
+class Tile:
+    def __init__(self, spin, n_neighbours):
+        self.spin = spin
+        self.neighbours = [None] * n_neighbours
+
+    def add(self, neighbour):
+        self.neighbours += [neighbour]
+
+    def set(self, neighbours):
+        self.neighbours = neighbours
+
+
 def Test1():
     gr = Grid(50, 1.0e0)
     
@@ -271,3 +283,12 @@ def PhaseTransition():
     plt.legend()
     plt.show(block=False)
 
+
+#   0 
+#      2
+#   1
+#      3
+
+internal = [(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)]
+direction1 = [(1, 0), (3, 0), (3, 2)]
+direction2 = [(2, 0), (3, 0), (3, 1)]
