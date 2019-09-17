@@ -179,10 +179,6 @@ class Tile:
         fig.show()
         plt.show(block=True)
 
-        if input() == 'd':
-            import pdb
-            pdb.set_trace()
-
     def _display(self, ax, l, orientation, r0, prev):
         n = len(self.neighbours)
         
