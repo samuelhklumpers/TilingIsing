@@ -227,16 +227,32 @@ class Tile:
                 if neigh is not None:
                     neigh.unvisit()
 
-def CreateHexGrid():
+def CreateHexGrid(depth):
     hex_constr = TilingConstraint(6)
     hex_constr.set_neighbours([hex_constr], 6)
     hex_constr.set_constraint(hex_constr, 1, -1, -1)
     hex_constr.set_constraint(hex_constr, -1, 1, 1)
 
-    tile = hex_constr.generate(depth=2)
+    tile = hex_constr.generate(depth=depth)
 
     return tile
 
+def Create3636(depth):
+    tri_constr = TilingConstraint(3)
+    hex_constr = TilingConstraint(6)
+
+    tri_constr.set_neighbours([hex_constr], 3)
+    hex_constr.set_neighbours([tri_constr], 6)
+
+    tri_constr.set_constraint(hex_constr, 1, -1, -1, -1)
+    tri_constr.set_constraint(hex_constr, -1, 1, 1, 1)
+    hex_constr.set_constraint(tri_constr, 1, -1, -1, -1)
+    hex_constr.set_constraint(tri_constr, -1, 1, 1, 1)
+
+    tile = hex_constr.generate(depth=depth)
+
+    return tile
+    
 def Test1():
     gr = Grid(50, 1.0e0)
     
