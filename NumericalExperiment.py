@@ -166,18 +166,18 @@ class Tile:
         self.visited = False
         self.r = None
 
-    def display(self, l):
+    def display(self):
         fig = plt.figure()
         ax = fig.subplots()
 
         orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
         r0 = np.array([0, 0])             #idk
         prev = 0
+        l = 1.0
 
         self._display(ax, l, orientation, r0, prev)
         self.unvisit()
         fig.show()
-        plt.show(block=True)
 
     def _display(self, ax, l, orientation, r0, prev):
         n = len(self.neighbours)
