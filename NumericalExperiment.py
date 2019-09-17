@@ -86,15 +86,15 @@ class TilingConstraint:
         self.neighbours = []
 
     def set_constraint(self, constraint, source_wind, target_wind, *windings):
-        self.constraints[constraint] = source_wind, target_wind, windings
+        if not constraint in self.constraints:
+            self.constraints[constraint] = []
+            
+        self.constraints[constraint] += [(source_wind, target_wind, windings)]
 
     def set_neighbours(self, constraints, repetitions=1):
         self.neighbours = constraints, repetitions
 
     def generate(self, tile=None, depth=1):
-        #import pdb
-        #pdb.set_trace()
-        
         if tile is None:
             tile = Tile(0, self.n)
             tile.constraint = self
@@ -103,27 +103,30 @@ class TilingConstraint:
             if neighbour is None:
                 continue
 
-            prev = tile
-            curr = neighbour
-            source_wind, target_wind, windings = self.constraints[neighbour.constraint]
-            
-            for winding in windings:
-                if curr is None:
-                    break
+            for source_wind, target_wind, windings in self.constraints[neighbour.constraint]:
+                k = (k0 + source_wind) % len(tile.neighbours)
+
+                if tile.neighbours[k] is not None:
+                    continue
+
+                prev = tile
+                curr = neighbour
                 
-                i0 = curr.neighbours.index(prev)
-                i = (i0 + winding) % len(curr.neighbours)
+                for winding in windings:
+                    if curr is None:
+                        break
+                    
+                    i0 = curr.neighbours.index(prev)
+                    i = (i0 + winding) % len(curr.neighbours)
 
-                prev, curr = curr, curr.neighbours[i]
+                    prev, curr = curr, curr.neighbours[i]
 
-            if curr is None:
-                continue
-            else:
-                k = (k0 + source_wind) % len(self.neighbours)
-                i0 = curr.neighbours.index(prev)
-                i = (i0 + target_wind) % len(curr.neighbours)
+                if curr is None:
+                    continue
+                else:         
+                    i0 = curr.neighbours.index(prev)
+                    i = (i0 + target_wind) % len(curr.neighbours)
 
-                if tile.neighbours[k] is None:
                     tile.neighbours[k] = curr
                     curr.neighbours[i] = tile
                     
@@ -160,12 +163,69 @@ class Tile:
     def __init__(self, spin, n_neighbours):
         self.spin = spin
         self.neighbours = [None] * n_neighbours
+        self.visited = False
+        self.r = None
 
-    def add(self, neighbour):
-        self.neighbours += [neighbour]
+    def display(self, l):
+        fig = plt.figure()
+        ax = fig.subplots()
 
-    def set(self, neighbours):
-        self.neighbours = neighbours
+        orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
+        r0 = np.array([0, 0])             #idk
+        prev = 0
+
+        self._display(ax, l, orientation, r0, prev)
+        self.unvisit()
+        fig.show()
+        plt.show(block=True)
+
+        if input() == 'd':
+            import pdb
+            pdb.set_trace()
+
+    def _display(self, ax, l, orientation, r0, prev):
+        n = len(self.neighbours)
+        
+        dr = l / (2 * np.tan(np.pi / n))
+        
+        if isinstance(prev, Tile):
+            i0 = self.neighbours.index(prev)
+            
+            if self.r is None:
+                r0 = r0 + dr * orientation
+
+                self.r = r0
+
+            ax.plot([self.r[0], prev.r[0]], [self.r[1], prev.r[1]], 'o-')
+        else:
+            i0 = prev
+            self.r = r0
+
+        if self.visited:
+            return
+        self.visited = True
+
+        orientation = -orientation
+
+        c, s = np.cos(2 * np.pi / n), np.sin(2 * np.pi / n)
+        R = np.array([[c, s], [-s, c]])
+
+        for di in range(n):
+            i = (i0 + di) % n
+
+            if self.neighbours[i] is not None:
+                self.neighbours[i]._display(ax, l, orientation, r0 + dr * orientation, self)
+
+            orientation = R.dot(orientation)
+
+    def unvisit(self):
+        if self.visited:
+            self.visited = False
+            self.r = None
+
+            for neigh in self.neighbours:
+                if neigh is not None:
+                    neigh.unvisit()
 
 def CreateHexGrid():
     hex_constr = TilingConstraint(6)
@@ -173,7 +233,7 @@ def CreateHexGrid():
     hex_constr.set_constraint(hex_constr, 1, -1, -1)
     hex_constr.set_constraint(hex_constr, -1, 1, 1)
 
-    tile = hex_constr.generate(depth=1)
+    tile = hex_constr.generate(depth=2)
 
     return tile
 
