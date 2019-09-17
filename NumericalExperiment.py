@@ -78,6 +78,84 @@ class Grid:
     def plot(self, axis, **kwargs):
         axis.imshow(self.grid, clim=(0, 1), **kwargs)
 
+# CW
+class TilingConstraint:
+    def __init__(self, n):
+        self.n = n
+        self.constraints = {}
+        self.neighbours = []
+
+    def set_constraint(self, constraint, source_wind, target_wind, *windings):
+        self.constraints[constraint] = source_wind, target_wind, windings
+
+    def set_neighbours(self, constraints, repetitions=1):
+        self.neighbours = constraints, repetitions
+
+    def generate(self, tile=None, depth=1):
+        #import pdb
+        #pdb.set_trace()
+        
+        if tile is None:
+            tile = Tile(0, self.n)
+            tile.constraint = self
+
+        for k0, neighbour in enumerate(tile.neighbours):
+            if neighbour is None:
+                continue
+
+            prev = tile
+            curr = neighbour
+            source_wind, target_wind, windings = self.constraints[neighbour.constraint]
+            
+            for winding in windings:
+                if curr is None:
+                    break
+                
+                i0 = curr.neighbours.index(prev)
+                i = (i0 + winding) % len(curr.neighbours)
+
+                prev, curr = curr, curr.neighbours[i]
+
+            if curr is None:
+                continue
+            else:
+                k = (k0 + source_wind) % len(self.neighbours)
+                i0 = curr.neighbours.index(prev)
+                i = (i0 + target_wind) % len(curr.neighbours)
+
+                if tile.neighbours[k] is None:
+                    tile.neighbours[k] = curr
+                    curr.neighbours[i] = tile
+                    
+        if depth == 0:
+            return tile
+
+        for i0, neighbour in enumerate(tile.neighbours):
+            if neighbour is not None:
+                break
+
+        if neighbour is None:
+            i0 = 0
+            j0 = 0
+        else:
+            j0 = self.neighbours[0].index(neighbour.constraint)
+
+        for dx in range(len(self.neighbours[0]) * self.neighbours[1]):
+            i = (i0 + dx) % len(tile.neighbours)
+            j = (j0 + dx) % len(self.neighbours[0])
+
+            if tile.neighbours[i] is None:
+                neigh = Tile(0, self.neighbours[0][j].n)
+                neigh.constraint = self.neighbours[0][j]
+
+                tile.neighbours[i] = neigh
+                neigh.neighbours[0] = tile
+
+        for neigh in tile.neighbours:
+            neigh.constraint.generate(tile=neigh, depth=depth - 1)
+            
+        return tile
+
 class Tile:
     def __init__(self, spin, n_neighbours):
         self.spin = spin
@@ -89,6 +167,15 @@ class Tile:
     def set(self, neighbours):
         self.neighbours = neighbours
 
+def CreateHexGrid():
+    hex_constr = TilingConstraint(6)
+    hex_constr.set_neighbours([hex_constr], 6)
+    hex_constr.set_constraint(hex_constr, 1, -1, -1)
+    hex_constr.set_constraint(hex_constr, -1, 1, 1)
+
+    tile = hex_constr.generate(depth=1)
+
+    return tile
 
 def Test1():
     gr = Grid(50, 1.0e0)
