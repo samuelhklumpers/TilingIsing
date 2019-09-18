@@ -14,6 +14,7 @@ import logging
 import pickle
 import os
 import sys
+import queue
 
 DEFAULT_SEEDS = [2019090814]
 
@@ -30,7 +31,7 @@ class Grid:
 
         np.random.seed(seed)
         self.grid = 2 * random.randint(0, 2, size=(n, n), dtype=np.int8) - 1
-        self.T_red = T_red
+        self.T_red = np.float64(T_red)
 
     def getEnergy(self):
         mult = np.roll(self.grid, 1, axis=0) + np.roll(self.grid, -1, axis=0) + np.roll(self.grid, 1, axis=1) + np.roll(self.grid, -1, axis=1)
@@ -69,6 +70,49 @@ class Grid:
 
         if accept:
             self.grid[coordRow, coordCol] *= -1
+
+    def wolffStep(self):
+        prev_err = np.seterr(all='ignore')
+        neighbours = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+        
+        i = random.randint(0, self.grid.shape[0])
+        j = random.randint(0, self.grid.shape[1])
+
+        dE = self.getFlipDiff(i, j)
+        p_start = np.exp(-dE / self.T_red)
+
+        if random.rand() > p_start:
+            return
+
+        val0 = self.grid[i, j]
+        beta = 1 / self.T_red
+        p = 1 - np.exp(-beta)
+
+        visited = np.full(self.grid.shape, 1, dtype=np.int8)
+        q = queue.Queue()
+        q.put((i, j))
+        visited[(i, j)] = -1
+
+        while not q.empty():
+            l = q.get()
+
+            for dl in neighbours:
+                l2 = (l[0] + dl[0], l[1] + dl[1])
+                l2 = (l2[0] % self.grid.shape[0], l2[1] % self.grid.shape[1])
+                
+                if visited[l2] < 0:
+                    continue
+
+                if self.grid[l] != self.grid[l2]:
+                    continue
+                
+                if random.rand() < p:
+                    visited[l2] = -1
+                    q.put(l2)
+
+        self.grid *= visited
+        
+        np.seterr(**prev_err)
             
     def show(self):
         plt.figure()
@@ -405,6 +449,33 @@ def AnimateSeries():
                                 repeat_delay=0)
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
+    
+
+    
+def ShowAnimate(gridsize=300, redT = 5.0,
+                      frames=100, framechanges=300):
+    seed = random.seed(DEFAULT_SEEDS[0])
+    for i in range(20):
+        seed = random.randint(0, 1e9)
+    
+    fig, ax = plt.subplots(figsize=(15, 15))
+
+    grid = Grid(gridsize, redT, seed)
+    im = ax.imshow(grid.grid, clim=(0, 1))
+    
+    def update(frame):
+        for j in range(framechanges):
+            grid.wolffStep()
+        #im = ax.imshow(grid.grid, clim=(0, 1))
+        if True or (frame % 50) == 0:
+            frame = frame
+        im.set_data(grid.grid)
+        #plt.text(0.2, 0.2, frame)
+        return (im,)
+        
+    ani = animation.FuncAnimation(fig, update)#, frames=range(1000))    
+    plt.show()
+    return ani
 
 def CreateSeries():
     grid = Grid(60, 10, DEFAULT_SEEDS[0])
@@ -448,8 +519,68 @@ def PhaseTransition():
     plt.legend()
     plt.figure()
     plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
+    plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
     plt.legend()
     plt.figure()
     plt.plot(T, m, label="m")
     plt.legend()
     plt.show(block=False)
+    
+def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
+                      frames=100, framechanges=100):
+    grid = Grid(gridsize, redT, DEFAULT_SEEDS[0])
+
+    ims = []
+    fig = plt.figure(figsize=(15, 15))
+    
+    for i in range(frames):
+        for j in range(framechanges):
+            grid.wolffStep()
+
+        ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
+        
+    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
+                                repeat_delay=0)
+
+    ani.save(seriesname, writer=PillowWriter(fps=10))
+
+def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
+    grid = Grid(n, redT)
+
+    prev_top = 4
+    prev_bot = -4
+
+    plt.figure()
+
+    E_axis = []
+
+    while True:
+        top = -4
+        bot = 4
+
+        E_axis += [grid.getAverageEnergy()]
+        
+        for i in range(sample_time):
+            E = grid.getAverageEnergy()
+
+            top = max(E, top)
+            bot = min(E, bot)
+            
+            grid.wolffStep()
+
+        if top > prev_top and bot < prev_bot:
+            for j in range(1):
+                for i in range(epoch_time):
+                    grid.wolffStep()
+
+                E_axis += [grid.getAverageEnergy()]
+                
+            plt.plot(list(range(len(E_axis))), E_axis)
+            plt.show(block=True)
+            
+            return grid
+
+        prev_top, prev_bot = top, bot
+
+        for i in range(epoch_time):
+            grid.wolffStep()
