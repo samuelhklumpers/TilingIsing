@@ -223,7 +223,7 @@ class Tile:
                 if neigh is not None:
                     neigh.unvisit()
 
-def CreateHexGrid(depth):
+def Create666(depth):
     hex_constr = TilingConstraint(6)
     hex_constr.set_neighbours([hex_constr], 6)
     hex_constr.set_constraint(hex_constr, 1, -1, -1)
@@ -248,7 +248,19 @@ def Create3636(depth):
     tile = hex_constr.generate(depth=depth)
 
     return tile
-    
+
+def Create333333(depth):
+    tri_constr = TilingConstraint(3)
+
+    tri_constr.set_neighbours([tri_constr], 3)
+
+    tri_constr.set_constraint(tri_constr, 1, -1, -1, -1, -1, -1)
+    tri_constr.set_constraint(tri_constr, -1, 1, 1, 1, 1, 1)
+
+    tile = tri_constr.generate(depth=depth)
+
+    return tile
+
 def Test1():
     gr = Grid(50, 1.0e0)
     
@@ -441,13 +453,3 @@ def PhaseTransition():
     plt.plot(T, m, label="m")
     plt.legend()
     plt.show(block=False)
-
-
-#   0 
-#      2
-#   1
-#      3
-
-internal = [(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)]
-direction1 = [(1, 0), (3, 0), (3, 2)]
-direction2 = [(2, 0), (3, 0), (3, 1)]
