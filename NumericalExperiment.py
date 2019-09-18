@@ -122,6 +122,189 @@ class Grid:
     def plot(self, axis, **kwargs):
         axis.imshow(self.grid, clim=(0, 1), **kwargs)
 
+# CW
+class TilingConstraint:
+    def __init__(self, n):
+        self.n = n
+        self.constraints = {}
+        self.neighbours = []
+
+    def set_constraint(self, constraint, source_wind, target_wind, *windings):
+        if not constraint in self.constraints:
+            self.constraints[constraint] = []
+            
+        self.constraints[constraint] += [(source_wind, target_wind, windings)]
+
+    def set_neighbours(self, constraints, repetitions=1):
+        self.neighbours = constraints, repetitions
+
+    def generate(self, tile=None, depth=1):
+        if tile is None:
+            tile = Tile(0, self.n)
+            tile.constraint = self
+
+        for k0, neighbour in enumerate(tile.neighbours):
+            if neighbour is None:
+                continue
+
+            for source_wind, target_wind, windings in self.constraints[neighbour.constraint]:
+                k = (k0 + source_wind) % len(tile.neighbours)
+
+                if tile.neighbours[k] is not None:
+                    continue
+
+                prev = tile
+                curr = neighbour
+                
+                for winding in windings:
+                    if curr is None:
+                        break
+                    
+                    i0 = curr.neighbours.index(prev)
+                    i = (i0 + winding) % len(curr.neighbours)
+
+                    prev, curr = curr, curr.neighbours[i]
+
+                if curr is None:
+                    continue
+                else:         
+                    i0 = curr.neighbours.index(prev)
+                    i = (i0 + target_wind) % len(curr.neighbours)
+
+                    tile.neighbours[k] = curr
+                    curr.neighbours[i] = tile
+                    
+        if depth == 0:
+            return tile
+
+        for i0, neighbour in enumerate(tile.neighbours):
+            if neighbour is not None:
+                break
+
+        if neighbour is None:
+            i0 = 0
+            j0 = 0
+        else:
+            j0 = self.neighbours[0].index(neighbour.constraint)
+
+        for dx in range(len(self.neighbours[0]) * self.neighbours[1]):
+            i = (i0 + dx) % len(tile.neighbours)
+            j = (j0 + dx) % len(self.neighbours[0])
+
+            if tile.neighbours[i] is None:
+                neigh = Tile(0, self.neighbours[0][j].n)
+                neigh.constraint = self.neighbours[0][j]
+
+                tile.neighbours[i] = neigh
+                neigh.neighbours[0] = tile
+
+        for neigh in tile.neighbours:
+            neigh.constraint.generate(tile=neigh, depth=depth - 1)
+            
+        return tile
+
+class Tile:
+    def __init__(self, spin, n_neighbours):
+        self.spin = spin
+        self.neighbours = [None] * n_neighbours
+        self.visited = False
+        self.r = None
+
+    def display(self):
+        fig = plt.figure()
+        ax = fig.subplots()
+
+        orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
+        r0 = np.array([0, 0])             #idk
+        prev = 0
+        l = 1.0
+
+        self._display(ax, l, orientation, r0, prev)
+        self.unvisit()
+        fig.show()
+
+    def _display(self, ax, l, orientation, r0, prev):
+        n = len(self.neighbours)
+        
+        dr = l / (2 * np.tan(np.pi / n))
+        
+        if isinstance(prev, Tile):
+            i0 = self.neighbours.index(prev)
+            
+            if self.r is None:
+                r0 = r0 + dr * orientation
+
+                self.r = r0
+
+            ax.plot([self.r[0], prev.r[0]], [self.r[1], prev.r[1]], 'o-')
+        else:
+            i0 = prev
+            self.r = r0
+
+        if self.visited:
+            return
+        self.visited = True
+
+        orientation = -orientation
+
+        c, s = np.cos(2 * np.pi / n), np.sin(2 * np.pi / n)
+        R = np.array([[c, s], [-s, c]])
+
+        for di in range(n):
+            i = (i0 + di) % n
+
+            if self.neighbours[i] is not None:
+                self.neighbours[i]._display(ax, l, orientation, r0 + dr * orientation, self)
+
+            orientation = R.dot(orientation)
+
+    def unvisit(self):
+        if self.visited:
+            self.visited = False
+            self.r = None
+
+            for neigh in self.neighbours:
+                if neigh is not None:
+                    neigh.unvisit()
+
+def Create666(depth):
+    hex_constr = TilingConstraint(6)
+    hex_constr.set_neighbours([hex_constr], 6)
+    hex_constr.set_constraint(hex_constr, 1, -1, -1)
+    hex_constr.set_constraint(hex_constr, -1, 1, 1)
+
+    tile = hex_constr.generate(depth=depth)
+
+    return tile
+
+def Create3636(depth):
+    tri_constr = TilingConstraint(3)
+    hex_constr = TilingConstraint(6)
+
+    tri_constr.set_neighbours([hex_constr], 3)
+    hex_constr.set_neighbours([tri_constr], 6)
+
+    tri_constr.set_constraint(hex_constr, 1, -1, -1, -1)
+    tri_constr.set_constraint(hex_constr, -1, 1, 1, 1)
+    hex_constr.set_constraint(tri_constr, 1, -1, -1, -1)
+    hex_constr.set_constraint(tri_constr, -1, 1, 1, 1)
+
+    tile = hex_constr.generate(depth=depth)
+
+    return tile
+
+def Create333333(depth):
+    tri_constr = TilingConstraint(3)
+
+    tri_constr.set_neighbours([tri_constr], 3)
+
+    tri_constr.set_constraint(tri_constr, 1, -1, -1, -1, -1, -1)
+    tri_constr.set_constraint(tri_constr, -1, 1, 1, 1, 1, 1)
+
+    tile = tri_constr.generate(depth=depth)
+
+    return tile
+
 def Test1():
     gr = Grid(50, 1.0e0)
     
@@ -342,7 +525,7 @@ def PhaseTransition():
     plt.plot(T, m, label="m")
     plt.legend()
     plt.show(block=False)
-
+    
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
     grid = Grid(gridsize, redT, DEFAULT_SEEDS[0])

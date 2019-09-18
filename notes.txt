@@ -4,3 +4,4 @@
 - grotere afstand invloeden
 - afleiden uit gegeven configuratie(s) wat de waarschijnlijke T_red is
 - correlatie tussen staten bepalen (kans dat A van B is geevolueerd)
+- externe velden (magneet, temp, totale energie in systeem)
