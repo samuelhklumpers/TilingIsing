@@ -5,3 +5,4 @@ series/*
 article/* 
 !article/article.pdf 
 !article/article.tex 
+__pycache__/

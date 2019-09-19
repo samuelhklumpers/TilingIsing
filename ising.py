@@ -44,7 +44,7 @@ class Grid:
         for offset in neighbours:
             E += -v * self.grid.take(i + offset[0], mode="wrap", axis=0).take(j + offset[1], mode="wrap")
 
-        return -2 * E
+        return -4 * E
 
     def getAverageEnergy(self):
         return self.getEnergy() / self.grid.size
@@ -82,7 +82,7 @@ class Grid:
 
         val0 = self.grid[i, j]
         beta = 1 / self.T_red
-        p = 1 - np.exp(-beta)
+        p = 1 - np.exp(-2 * beta)
 
         visited = np.full(self.grid.shape, 1, dtype=np.int8)
         q = queue.Queue()
@@ -140,6 +140,10 @@ class TilingConstraint:
         if tile is None:
             tile = Tile(0, self.n)
             tile.constraint = self
+
+        if tile.visited:
+            return tile
+        tile.visited = True
 
         for k0, neighbour in enumerate(tile.neighbours):
             if neighbour is None:
@@ -217,6 +221,7 @@ class Tile:
         prev = 0
         l = 1.0
 
+        self.unvisit()
         self._display(ax, l, orientation, r0, prev)
         self.unvisit()
         fig.show()

@@ -45,6 +45,30 @@ def Create333333(depth):
 
     return tile
 
+def Create555(depth):
+    tri_constr = TilingConstraint(5)
+
+    tri_constr.set_neighbours([tri_constr], 5)
+
+    tri_constr.set_constraint(tri_constr, 1, -1, -1)
+    tri_constr.set_constraint(tri_constr, -1, 1, 1)
+
+    tile = tri_constr.generate(depth=depth)
+
+    return tile
+
+def Create33333(depth):
+    tri_constr = TilingConstraint(3)
+
+    tri_constr.set_neighbours([tri_constr], 3)
+
+    tri_constr.set_constraint(tri_constr, 1, -1, -1, -1, -1)
+    tri_constr.set_constraint(tri_constr, -1, 1, 1, 1, 1)
+
+    tile = tri_constr.generate(depth=depth)
+
+    return tile
+
 def Test1():
     gr = Grid(50, 1.0e0)
 
@@ -237,28 +261,31 @@ def CreateSeries():
 def PhaseTransition():
     import scipy.ndimage.filters as filters
 
-    grid = Grid(30, 10, DEFAULT_SEEDS[0])
+    grid = Grid(20, 0.01, DEFAULT_SEEDS[0])
 
     T = []
     E = []
     m = []
+    C = []
 
     for i in range(100):
-        grid.T_red = 10 - i / 10
+        #grid = Grid(20, 0.01, np.random.randint(1000))
+        grid.T_red = 0.01 + i / 20
         T += [grid.T_red]
+        E = []
 
-        for j in range(10000):
-            grid.metroStep()
-
-        E += [grid.getAverageEnergy()]
+        for j in range(1000):
+            grid.wolffStep()
+            E += [grid.getAverageEnergy()]
+            
         m += [grid.getAverageMagnetization()]
+        C += [np.var(E)]
 
+##    plt.figure()
+##    plt.plot(T, filters.gaussian_filter1d(E, 0.00001), label="E")
+##    plt.legend()
     plt.figure()
-    plt.plot(T, filters.gaussian_filter1d(E, 5), label="E")
-    plt.legend()
-    plt.figure()
-    plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
-    plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
+    plt.plot(T, C, label="C")
     plt.legend()
     plt.figure()
     plt.plot(T, m, label="m")
@@ -323,7 +350,3 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
 
         for i in range(epoch_time):
             grid.wolffStep()
-
-Create666(9).display()
-
-
