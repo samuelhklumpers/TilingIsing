@@ -14,6 +14,7 @@ import queue
 
 DEFAULT_SEEDS = [2019090814]
 
+#logging.reset()
 fh = logging.FileHandler("log.txt", mode="w")
 stdout_handle = logging.StreamHandler(sys.stdout)
 log = logging.getLogger(__name__)
@@ -82,7 +83,7 @@ class Grid:
 
         val0 = self.grid[i, j]
         beta = 1 / self.T_red
-        p = 1 - np.exp(-beta)
+        p = 1 - np.exp(-2.0 * beta)
 
         visited = np.full(self.grid.shape, 1, dtype=np.int8)
         q = queue.Queue()

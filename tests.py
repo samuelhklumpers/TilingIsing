@@ -242,24 +242,41 @@ def PhaseTransition():
     T = []
     E = []
     m = []
+    C = []
 
-    for i in range(100):
-        grid.T_red = 10 - i / 10
+    for i in range(0, 100):
+        grid.T_red = 0.1 + i / 10
         T += [grid.T_red]
+        for j in range(1000):
+            grid.wolffStep()
 
+        E2 = []
+        
         for j in range(10000):
-            grid.metroStep()
+            grid.wolffStep()
+            if not j % 100:
+                E2 += [grid.getAverageEnergy()]
 
         E += [grid.getAverageEnergy()]
         m += [grid.getAverageMagnetization()]
+        
+        C += [np.var(E2)/(grid.T_red)**2]
 
     plt.figure()
     plt.plot(T, filters.gaussian_filter1d(E, 5), label="E")
     plt.legend()
+    
     plt.figure()
     plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
     plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
     plt.legend()
+    plt.show(block=False)
+    
+    plt.figure()
+    plt.plot(T, C, label="CFromVar")
+    plt.legend()
+    plt.show(block=False)
+    
     plt.figure()
     plt.plot(T, m, label="m")
     plt.legend()
@@ -324,6 +341,6 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
         for i in range(epoch_time):
             grid.wolffStep()
 
-Create666(9).display()
+#Create666(9).display()
 
 
