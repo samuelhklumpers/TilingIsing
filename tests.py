@@ -227,7 +227,7 @@ def ShowAnimate(gridsize=300, redT = 5.0,
     grid = Grid(gridsize, redT, seed)
     im = ax.imshow(grid.grid, clim=(0, 1))
 
-    def update(frame):
+    def update(frame):        
         for j in range(framechanges):
             grid.wolffStep()
         #im = ax.imshow(grid.grid, clim=(0, 1))
@@ -350,3 +350,38 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
 
         for i in range(epoch_time):
             grid.wolffStep()
+
+
+def HexWolff(depth=4, T_red=4.0):
+    h = Create666(depth)
+    l = h.toList()
+
+    fig, ax = plt.subplots(figsize=(15, 15))
+    
+
+    for i in range(10):
+        h.display()
+
+        s = random.choice(l)
+        s.wolff(T_red)
+
+def AnimateTile(redT = 5.0, frameskip=1, tile=None):
+    fig, ax = plt.subplots(figsize=(15, 15))
+
+    tileList = tile.toList()
+
+    def update(frame):
+        ax.cla()
+        
+        for j in range(frameskip):
+            start = random.choice(tileList)
+            start.wolff(redT)
+
+        tile.display(fig, ax, show=False)
+        return ax.get_children()
+
+    ani = animation.FuncAnimation(fig, update, interval=33)
+    plt.show()
+    return ani
+
+    

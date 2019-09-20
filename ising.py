@@ -194,7 +194,7 @@ class TilingConstraint:
             j = (j0 + dx) % len(self.neighbours[0])
 
             if tile.neighbours[i] is None:
-                neigh = Tile(0, self.neighbours[0][j].n)
+                neigh = Tile(1, self.neighbours[0][j].n)
                 neigh.constraint = self.neighbours[0][j]
 
                 tile.neighbours[i] = neigh
@@ -207,14 +207,15 @@ class TilingConstraint:
 
 class Tile:
     def __init__(self, spin, n_neighbours):
-        self.spin = spin
+        self.spin = random.choice([-1.0, 1.0])#spin
         self.neighbours = [None] * n_neighbours
         self.visited = False
         self.r = None
 
-    def display(self):
-        fig = plt.figure()
-        ax = fig.subplots()
+    def display(self, fig=None, ax=None, show=True):
+        if fig is None:
+            fig = plt.figure()
+            ax = fig.subplots()
 
         orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
         r0 = np.array([0, 0])             #idk
@@ -224,7 +225,11 @@ class Tile:
         self.unvisit()
         self._display(ax, l, orientation, r0, prev)
         self.unvisit()
-        fig.show()
+
+        if show:
+            fig.show()
+
+        return fig, ax
 
     def _display(self, ax, l, orientation, r0, prev):
         n = len(self.neighbours)
@@ -239,7 +244,7 @@ class Tile:
 
                 self.r = r0
 
-            ax.plot([self.r[0], prev.r[0]], [self.r[1], prev.r[1]], 'o-')
+            ax.plot([self.r[0], prev.r[0]], [self.r[1], prev.r[1]], 'k-', zorder=3)
         else:
             i0 = prev
             self.r = r0
@@ -247,6 +252,9 @@ class Tile:
         if self.visited:
             return
         self.visited = True
+
+        mfc = 'b' if self.spin < 0 else 'r'
+        ax.scatter(self.r[0], self.r[1], s=400, c=mfc, marker='o', alpha=1, zorder=4)
 
         orientation = -orientation
 
@@ -260,6 +268,60 @@ class Tile:
                 self.neighbours[i]._display(ax, l, orientation, r0 + dr * orientation, self)
 
             orientation = R.dot(orientation)
+
+    def getFlipEnergy(self):
+        dn = sum(self.spin * neigh.spin for neigh in self.neighbours if neigh is not None)
+
+        return -4 * dn
+
+    def wolff(self, T_red):
+        if T_red <= 0:
+            return
+
+        self.unvisit()
+        dE = self.getFlipEnergy()
+        p0 = np.exp(-dE / T_red)
+
+        if random.rand() > p0:
+            return
+        
+        beta = 1 / T_red
+        p = 1 - np.exp(-2 * beta)
+
+        self._wolff(p, self.spin)
+        self.unvisit()
+
+    def _wolff(self, p, v0):
+        if self.visited:
+            return
+        self.visited = True
+
+        self.spin = -v0
+
+        for neigh in self.neighbours:
+            if neigh is None:
+                continue
+            
+            if neigh.spin == v0 and random.rand() < p:
+                neigh._wolff(p, v0)
+
+    def toList(self):
+        self.unvisit()
+        l = []
+        self._toList(l)
+        self.unvisit()
+        return l
+
+    def _toList(self, l):
+        if self.visited:
+            return
+        self.visited = True
+
+        l += [self]
+
+        for neigh in self.neighbours:
+            if neigh is not None:
+                neigh._toList(l)
 
     def unvisit(self):
         if self.visited:
