@@ -136,15 +136,21 @@ class TilingConstraint:
     def set_neighbours(self, constraints, repetitions=1):
         self.neighbours = constraints, repetitions
 
-    def generate(self, tile=None, depth=1):
-        if tile is None:
-            tile = Tile(0, self.n)
-            tile.constraint = self
+    def generate(self, depth):
+        q = queue.Queue()
+        t0 = Tile(0, self.n)
+        t0.depth = depth
+        t0.constraint = self
+        q.put(t0)
 
-        if tile.visited:
-            return tile
-        tile.visited = True
+        while not q.empty():
+            t = q.get()
+            for n in t.constraint._generate(t):
+                q.put(n)
 
+        return t0
+
+    def _generate(self, tile):
         for k0, neighbour in enumerate(tile.neighbours):
             if neighbour is None:
                 continue
@@ -176,8 +182,8 @@ class TilingConstraint:
                     tile.neighbours[k] = curr
                     curr.neighbours[i] = tile
 
-        if depth == 0:
-            return tile
+        if tile.depth == 0:
+            return []
 
         for i0, neighbour in enumerate(tile.neighbours):
             if neighbour is not None:
@@ -189,6 +195,8 @@ class TilingConstraint:
         else:
             j0 = self.neighbours[0].index(neighbour.constraint)
 
+        new_neighs = []
+
         for dx in range(len(self.neighbours[0]) * self.neighbours[1]):
             i = (i0 + dx) % len(tile.neighbours)
             j = (j0 + dx) % len(self.neighbours[0])
@@ -196,23 +204,45 @@ class TilingConstraint:
             if tile.neighbours[i] is None:
                 neigh = Tile(1, self.neighbours[0][j].n)
                 neigh.constraint = self.neighbours[0][j]
+                neigh.depth = tile.depth - 1
 
                 tile.neighbours[i] = neigh
                 neigh.neighbours[0] = tile
 
-        for neigh in tile.neighbours:
-            neigh.constraint.generate(tile=neigh, depth=depth - 1)
+                new_neighs += [neigh]
 
-        return tile
+        return new_neighs
 
 class Tile:
     def __init__(self, spin, n_neighbours):
-        self.spin = random.choice([-1.0, 1.0])#spin
+        self.spin = 1#random.choice([-1.0, 1.0])#spin
         self.neighbours = [None] * n_neighbours
         self.visited = False
         self.r = None
 
-    def display(self, fig=None, ax=None, show=True):
+    def corecurse(self, l, f, default=None):
+        q = queue.Queue()
+
+        q.put(self)
+        self.visited = True
+        r = [] if default is None else default
+
+        while not q.empty():
+            t = q.get()
+
+            for n in t.neighbours:
+                if n is None or n.visited:
+                    continue
+                n.visited = True
+                q.put(n)
+
+            r = f(t, r)
+
+        self.unvisit(l)
+
+        return r
+
+    def display(self, l, fig=None, ax=None, show=True):
         if fig is None:
             fig = plt.figure()
             ax = fig.subplots()
@@ -220,21 +250,21 @@ class Tile:
         orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
         r0 = np.array([0, 0])             #idk
         prev = 0
-        l = 1.0
+        r = 1.0
 
-        self.unvisit()
-        self._display(ax, l, orientation, r0, prev)
-        self.unvisit()
+        self.unvisit(l)
+        self._display(ax, r, orientation, r0, prev)
+        self.unvisit(l)
 
         if show:
             fig.show()
 
         return fig, ax
 
-    def _display(self, ax, l, orientation, r0, prev):
+    def _display(self, ax, r, orientation, r0, prev):
         n = len(self.neighbours)
 
-        dr = l / (2 * np.tan(np.pi / n))
+        dr = r / (2 * np.tan(np.pi / n))
 
         if isinstance(prev, Tile):
             i0 = self.neighbours.index(prev)
@@ -265,7 +295,7 @@ class Tile:
             i = (i0 + di) % n
 
             if self.neighbours[i] is not None:
-                self.neighbours[i]._display(ax, l, orientation, r0 + dr * orientation, self)
+                self.neighbours[i]._display(ax, r, orientation, r0 + dr * orientation, self)
 
             orientation = R.dot(orientation)
 
@@ -274,11 +304,11 @@ class Tile:
 
         return -4 * dn
 
-    def wolff(self, T_red):
+    def wolff(self, T_red, l):
         if T_red <= 0:
             return
 
-        self.unvisit()
+        self.unvisit(l)
         dE = self.getFlipEnergy()
         p0 = np.exp(-dE / T_red)
 
@@ -289,7 +319,7 @@ class Tile:
         p = 1 - np.exp(-2 * beta)
 
         self._wolff(p, self.spin)
-        self.unvisit()
+        self.unvisit(l)
 
     def _wolff(self, p, v0):
         if self.visited:
@@ -306,28 +336,35 @@ class Tile:
                 neigh._wolff(p, v0)
 
     def toList(self):
-        self.unvisit()
         l = []
-        self._toList(l)
-        self.unvisit()
-        return l
+        q = queue.Queue()
 
-    def _toList(self, l):
-        if self.visited:
-            return
+        q.put(self)
         self.visited = True
 
-        l += [self]
+        while not q.empty():
+            t = q.get()
+            l += [t]
+            
+            for n in t._toList():
+                q.put(n)
+                
+        for t in l:
+            t.visited = False
+            
+        return l
+
+    def _toList(self):
+        l = []
 
         for neigh in self.neighbours:
-            if neigh is not None:
-                neigh._toList(l)
+            if neigh is not None and not neigh.visited:
+                l += [neigh]
+                neigh.visited = True
 
-    def unvisit(self):
-        if self.visited:
-            self.visited = False
-            self.r = None
+        return l
 
-            for neigh in self.neighbours:
-                if neigh is not None:
-                    neigh.unvisit()
+    @classmethod
+    def unvisit(self, l):
+        for t in l:
+            t.visited = False
