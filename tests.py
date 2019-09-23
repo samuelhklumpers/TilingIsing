@@ -1,4 +1,4 @@
-from ising import SquareGrid, DEFAULT_SEEDS, TilingConstraint, log, TileGrid
+from ising import SquareGrid, DEFAULT_SEEDS, TilingConstraint, log, TileGrid, ExternalGrid
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.animation import PillowWriter
@@ -380,5 +380,27 @@ def AnimateTile(tileGrid, redT = 5.0, frameskip=1):
     ani = animation.FuncAnimation(fig, update, interval=33)
     plt.show()
     return ani
+
+def HalfPlateExample():
+    n = 30
+    grid = None
+
+    dE_func = lambda i, j: 2 * grid.grid[i][j] if i < n // 2 else -2 * grid.grid[i][j]
+
+    grid = ExternalGrid(n, t_func=2.0, dE_func=dE_func)
+
+    ims = []
+    fig = plt.figure()
+
+    for i in range(100):
+        for j in range(1000):
+            grid.metro()
+
+        ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
+
+    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
+                                repeat_delay=0)
+
+    ani.save("series.gif", writer=PillowWriter(fps=10))
 
 
