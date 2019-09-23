@@ -365,8 +365,10 @@ def HexWolff(depth=4, redT=4.0):
         tileGrid.display()
         tileGrid.wolff()
 
-def AnimateTile(tileGrid, redT = 5.0, frameskip=1):
-    fig, ax = plt.subplots(figsize=(15, 15))
+def AnimateTile(tileGrid, redT=5.0, frameskip=1):
+    fig, ax = plt.subplots(figsize=(12, 12))
+
+    tileGrid.redT = redT
 
     def update(frame):
         ax.cla()
@@ -377,7 +379,7 @@ def AnimateTile(tileGrid, redT = 5.0, frameskip=1):
         tileGrid.display(fig, ax, show=False)
         return ax.get_children()
 
-    ani = animation.FuncAnimation(fig, update, interval=33)
+    ani = animation.FuncAnimation(fig, update, interval=1000)
     plt.show()
     return ani
 

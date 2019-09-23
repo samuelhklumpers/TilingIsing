@@ -367,118 +367,109 @@ class TileGrid(IGrid):
 
         beta = 1 / self.redT
         p = 1 - np.exp(-2 * beta)
-
-        start._wolff(p, start.spin)
-        self.unvisit()
-
-    def unvisit(self):
-        for t in self.lis:
-            t.visited = False
-
-    def corecurse(self, rep, f, default=None):
+        v0 = start.spin
+        
         q = queue.Queue()
-
-        q.put(rep)
-        rep.visited = True
-        r = [] if default is None else default
+        visited = set()
+        
+        q.put(start)
+        visited.add(start)
+        start.visited = True
 
         while not q.empty():
-            t = q.get()
+            curr = q.get()
+            curr.spin = -v0
 
-            for n in t.neighs:
-                if n is None or n.visited:
+            for neigh in curr.neighs:
+                if neigh is None or neigh.visited:
                     continue
-                n.visited = True
-                q.put(n)
 
-            r = f(t, r)
+                if neigh.spin == v0 and random.rand() < p:
+                    neigh.visited = True
+                    q.put(neigh)
+                    visited.add(neigh)
 
-        self.unvisit()
-
-        return r
+        for tile in visited:
+            tile.visited = False
 
     def display(self, fig=None, ax=None, show=True):
         if fig is None:
             fig = plt.figure()
             ax = fig.subplots()
+            
+        self.unvisit()
 
-        orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
-        r0 = np.array([0, 0])             #idk
-        prev = 0
         r = 1.0
 
-        self.unvisit()
-        self.rep._display(ax, r, orientation, r0, prev)
-        self.unvisit()
+        curr = self.rep
+        curr.r = np.array([0, 0]) #idk
+        curr.dr = r / (2 * np.tan(np.pi / len(curr.neighs)))
+        curr.i0 = 0
+        curr.orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
+
+        q = queue.Queue()
+        q.put(curr)
+        curr.visited = True
+
+        while not q.empty():
+            curr = q.get()
+
+            mfc = 'b' if curr.spin < 0 else 'r'
+            ax.scatter(curr.r[0], curr.r[1], s=400, c=mfc, marker='o', alpha=1, zorder=4)
+
+            orientation = curr.orientation
+            i0 = curr.i0
+            neighs = curr.neighs
+            n = len(neighs)
+
+            c, s = np.cos(2 * np.pi / n), np.sin(2 * np.pi / n)
+            R = np.array([[c, s], [-s, c]])
+
+            for di in range(n):
+                i = (i0 + di) % n
+                neigh = neighs[i]
+                
+                if not neigh is None:
+                    if not neigh.visited:
+                        neigh.visited = True
+                        q.put(neigh)
+                        
+                        m = len(neigh.neighs)
+
+                        neigh.dr = r / (2 * np.tan(np.pi / m))
+                        neigh.r = curr.r + orientation * (curr.dr + neigh.dr)
+                        
+                        neigh.i0 = neigh.neighs.index(curr)
+                        neigh.orientation = -orientation
+
+                    ax.plot([curr.r[0], neigh.r[0]], [curr.r[1], neigh.r[1]], 'k-', zorder=3)
+
+                orientation = R.dot(orientation)
 
         if show:
             fig.show()
 
         return fig, ax
 
+    def unvisit(self):
+        for t in self.lis:
+            t.visited = False
+
 class Tile:
     def __init__(self, spin, n_neighs):
         self.spin = random.choice([-1.0, 1.0])#spin
         self.neighs = [None] * n_neighs
         self.visited = False
+        
+        self.dr = None
         self.r = None
-
-    def _display(self, ax, r, orientation, r0, prev):
-        n = len(self.neighs)
-
-        dr = r / (2 * np.tan(np.pi / n))
-
-        if isinstance(prev, Tile):
-            i0 = self.neighs.index(prev)
-
-            if self.r is None:
-                r0 = r0 + dr * orientation
-
-                self.r = r0
-
-            ax.plot([self.r[0], prev.r[0]], [self.r[1], prev.r[1]], 'k-', zorder=3)
-        else:
-            i0 = prev
-            self.r = r0
-
-        if self.visited:
-            return
-        self.visited = True
-
-        mfc = 'b' if self.spin < 0 else 'r'
-        ax.scatter(self.r[0], self.r[1], s=400, c=mfc, marker='o', alpha=1, zorder=4)
-
-        orientation = -orientation
-
-        c, s = np.cos(2 * np.pi / n), np.sin(2 * np.pi / n)
-        R = np.array([[c, s], [-s, c]])
-
-        for di in range(n):
-            i = (i0 + di) % n
-
-            if self.neighs[i] is not None:
-                self.neighs[i]._display(ax, r, orientation, r0 + dr * orientation, self)
-
-            orientation = R.dot(orientation)
+        self.orientation = None
+        self.i0 = None
 
     def getEnergyAt(self):
         dn = -sum(self.spin * neigh.spin for neigh in self.neighs if neigh is not None)
 
         return dn
-
-    def _wolff(self, p, v0):
-        if self.visited:
-            return
-        self.visited = True
-
-        self.spin = -v0
-
-        for neigh in self.neighs:
-            if neigh is None:
-                continue
-
-            if neigh.spin == v0 and random.rand() < p:
-                neigh._wolff(p, v0)
 
     def toList(self):
         l = []
