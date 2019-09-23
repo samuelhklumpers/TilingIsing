@@ -1,4 +1,4 @@
-from ising import Grid, DEFAULT_SEEDS, TilingConstraint, log
+from ising import SquareGrid, DEFAULT_SEEDS, TilingConstraint, log, TileGrid, ExternalGrid
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.animation import PillowWriter
@@ -13,9 +13,9 @@ def Create666(depth):
     hex_constr.set_constraint(hex_constr, 1, -1, -1)
     hex_constr.set_constraint(hex_constr, -1, 1, 1)
 
-    tile = hex_constr.generate(depth=depth)
+    tg = TileGrid(hex_constr, depth, 1.0)
 
-    return tile
+    return tg
 
 def Create3636(depth):
     tri_constr = TilingConstraint(3)
@@ -69,49 +69,39 @@ def Create33333(depth):
 
     return tile
 
-def Test1():
-    gr = Grid(50, 1.0e0)
+def Create4444(depth):
+    sq_constr = TilingConstraint(4)
 
-    for i in range(25000):
-        gr.metroStep()
+    sq_constr.set_neighbours([sq_constr], 4)
 
-    gr.show()
+    sq_constr.set_constraint(sq_constr, 1, -1, -1, -1)
+    sq_constr.set_constraint(sq_constr, -1, 1, 1, 1)
 
-def Test2():
-    gr = Grid(200, 0.5)
+    tile = sq_constr.generate(depth=depth)
 
-    for i in range(2500000):
-        gr.metroStep()
-
-    gr.show()
-    print(gr.getAverageEnergy(), gr.getAverageMagnetization())
-
-    for i in range(1000000):
-        gr.metroStep()
-
-    gr.show()
+    return tile
 
 def Exp2_6_1():
-    gr = Grid(20, 5.0)
+    gr = SquareGrid(20, 5.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 35000]
 
     for att in attempts:
         while numberOfAttempts < att:
-            gr.metroStep()
+            gr.metro()
             numberOfAttempts += 1
 
         log.info(f"At attempts {numberOfAttempts}")
         gr.show()
 
 def Exp2_6_2():
-    gr = Grid(20, 10.0)
+    gr = SquareGrid(20, 10.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
 
     for att in attempts:
         while numberOfAttempts < att:
-            gr.metroStep()
+            gr.metro()
             numberOfAttempts += 1
 
         log.info(f"At attempts {numberOfAttempts}")
@@ -120,13 +110,13 @@ def Exp2_6_2():
         gr.show()
 
 def Exp2_6_3():
-    gr = Grid(20, 0.5)
+    gr = SquareGrid(20, 0.5)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
 
     for att in attempts:
         while numberOfAttempts < att:
-            gr.metroStep()
+            gr.metro()
             numberOfAttempts += 1
         log.info(f"At attempts {numberOfAttempts}")
         log.info("Average momentum: {}".format(gr.getAverageMagnetization()))
@@ -139,13 +129,13 @@ def Exp2_6_4():
     print("At T=0 it converges to plainly +1 or -1, so it is not that interesting.\n\
     Anyway:")
 
-    gr = Grid(20, 0.0)
+    gr = SquareGrid(20, 0.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
 
     for att in attempts:
         while numberOfAttempts < att:
-            gr.metroStep()
+            gr.metro()
             numberOfAttempts += 1
 
         log.info(f"At attempts {numberOfAttempts}")
@@ -168,7 +158,7 @@ def Exp2_6_5():
 
     for i in range(0, len(seeds)):
         seed = seeds[i]
-        gr = Grid(20, 3.0, seed=seed)
+        gr = SquareGrid(20, 3.0, seed=seed)
         numberOfAttempts = 0
 
         f, ax = plt.subplots(nrows=1, ncols=len(attempts), sharey=True)
@@ -178,7 +168,7 @@ def Exp2_6_5():
         for j in range(0, len(attempts)):
             att = attempts[j]
             while numberOfAttempts < att:
-                gr.metroStep()
+                gr.metro()
                 numberOfAttempts += 1
             #print(f"At attempts {numberOfAttempts}")
             #print("Average momentum: {}".format(GetAverageMomentum(gr)))
@@ -188,14 +178,14 @@ def Exp2_6_5():
         plt.show()
 
 def GenerateSeries():
-    grid = Grid(50, 0.5, DEFAULT_SEEDS[0])
+    grid = SquareGrid(50, 0.5, DEFAULT_SEEDS[0])
 
     for i in range(100):
         with open(f"series\\series{i:03}.dat", mode="wb") as f:
             pickle.dump(grid.grid, f)
 
         for j in range(100000):
-            grid.metroStep()
+            grid.metro()
 
 def AnimateSeries():
     fig = plt.figure()
@@ -224,12 +214,12 @@ def ShowAnimate(gridsize=300, redT = 5.0,
 
     fig, ax = plt.subplots(figsize=(15, 15))
 
-    grid = Grid(gridsize, redT, seed)
+    grid = SquareGrid(gridsize, redT, seed)
     im = ax.imshow(grid.grid, clim=(0, 1))
 
-    def update(frame):        
+    def update(frame):
         for j in range(framechanges):
-            grid.wolffStep()
+            grid.wolff()
         #im = ax.imshow(grid.grid, clim=(0, 1))
         if True or (frame % 50) == 0:
             frame = frame
@@ -242,14 +232,14 @@ def ShowAnimate(gridsize=300, redT = 5.0,
     return ani
 
 def CreateSeries():
-    grid = Grid(30, 10, DEFAULT_SEEDS[0])
+    grid = SquareGrid(30, 10, DEFAULT_SEEDS[0])
 
     ims = []
     fig = plt.figure()
 
     for i in range(100):
-        for j in range(1000):
-            grid.metroStep()
+        for _ in range(1000):
+            grid.metro()
 
         ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
 
@@ -261,62 +251,61 @@ def CreateSeries():
 def PhaseTransition():
     import scipy.ndimage.filters as filters
 
-    grid = Create666(18)
-    l = grid.toList()
+    tileGrid = Create666(10)
 
     T = []
     E = []
-    m = []
+    #m = []
     C = []
 
     for i in range(0, 100):
-        grid.T_red = 0.1 + i / 10
-        T += [grid.T_red]
+        redT = 10 - i / 10
+        T += [redT]
         for j in range(1000):
-            grid.wolffStep()
+            tileGrid.wolff()
 
         E2 = []
-        
-        for j in range(10000):
-            grid.wolffStep()
-            if not j % 100:
-                E2 += [grid.getAverageEnergy()]
 
-        E += [grid.getAverageEnergy()]
-        m += [grid.getAverageMagnetization()]
-        
-        C += [np.var(E2)/(grid.T_red)**2]
+        for _ in range(100):
+            for _ in range(100):
+                tileGrid.wolff()
+            E2 += [tileGrid.getAverageEnergy()]
+
+        E += [tileGrid.getAverageEnergy()]
+        #m += [tile.getAverageMagnetization()]
+
+        C += [np.var(E2)/(redT)**2]
 
     plt.figure()
     plt.plot(T, filters.gaussian_filter1d(E, 5), label="E")
     plt.legend()
-    
+
     plt.figure()
     plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
     plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
     plt.legend()
     plt.show(block=False)
-    
+
     plt.figure()
     plt.plot(T, C, label="CFromVar")
     plt.legend()
     plt.show(block=False)
-    
-    plt.figure()
-    plt.plot(T, m, label="m")
-    plt.legend()
-    plt.show(block=False)
+
+    #plt.figure()
+    #plt.plot(T, m, label="m")
+    #plt.legend()
+    #plt.show(block=False)
 
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
-    grid = Grid(gridsize, redT, DEFAULT_SEEDS[0])
+    grid = SquareGrid(gridsize, redT, DEFAULT_SEEDS[0])
 
     ims = []
     fig = plt.figure(figsize=(15, 15))
 
     for i in range(frames):
         for j in range(framechanges):
-            grid.wolffStep()
+            grid.wolff()
 
         ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
 
@@ -326,7 +315,7 @@ def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
     ani.save(seriesname, writer=PillowWriter(fps=10))
 
 def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
-    grid = Grid(n, redT)
+    grid = SquareGrid(n, redT)
 
     prev_top = 4
     prev_bot = -4
@@ -347,12 +336,12 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
             top = max(E, top)
             bot = min(E, bot)
 
-            grid.wolffStep()
+            grid.wolff()
 
         if top > prev_top and bot < prev_bot:
             for j in range(1):
                 for i in range(epoch_time):
-                    grid.wolffStep()
+                    grid.wolff()
 
                 E_axis += [grid.getAverageEnergy()]
 
@@ -364,38 +353,54 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
         prev_top, prev_bot = top, bot
 
         for i in range(epoch_time):
-            grid.wolffStep()
+            grid.wolff()
 
-def HexWolff(depth=4, T_red=4.0):
-    h = Create666(depth)
-    l = h.toList()
+def HexWolff(depth=4, redT=4.0):
+    tileGrid = Create666(depth)
 
     fig, ax = plt.subplots(figsize=(15, 15))
-    
+
 
     for i in range(10):
-        h.display()
+        tileGrid.display()
+        tileGrid.wolff()
 
-        s = random.choice(l)
-        s.wolff(T_red)
-
-def AnimateTile(redT = 5.0, frameskip=1, tile=None):
+def AnimateTile(tileGrid, redT = 5.0, frameskip=1):
     fig, ax = plt.subplots(figsize=(15, 15))
-
-    tileList = tile.toList()
 
     def update(frame):
         ax.cla()
-        
-        for j in range(frameskip):
-            start = random.choice(tileList)
-            start.wolff(redT, tileList)
 
-        tile.display(tileList, fig, ax, show=False)
+        for j in range(frameskip):
+            tileGrid.wolff()
+
+        tileGrid.display(fig, ax, show=False)
         return ax.get_children()
 
     ani = animation.FuncAnimation(fig, update, interval=33)
     plt.show()
     return ani
 
-    
+def HalfPlateExample():
+    n = 30
+    grid = None
+
+    dE_func = lambda i, j: 2 * grid.grid[i][j] if i < n // 2 else -2 * grid.grid[i][j]
+
+    grid = ExternalGrid(n, t_func=2.0, dE_func=dE_func)
+
+    ims = []
+    fig = plt.figure()
+
+    for i in range(100):
+        for j in range(1000):
+            grid.metro()
+
+        ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
+
+    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
+                                repeat_delay=0)
+
+    ani.save("series.gif", writer=PillowWriter(fps=10))
+
+

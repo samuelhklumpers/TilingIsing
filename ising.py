@@ -22,13 +22,29 @@ log.setLevel(logging.INFO)
 log.addHandler(fh)
 log.addHandler(stdout_handle)
 
-class Grid:
-    def __init__(self, n, T_red, seed=DEFAULT_SEEDS[0]):
+class IGrid:
+    def getEnergy(self):
+        ...
+
+    def getAverageEnergy(self):
+        ...
+
+    def getAverageMagnetization(self):
+        ...
+
+    def metro(self):
+        ...
+
+    def wolff(self):
+        ...
+
+class SquareGrid(IGrid):
+    def __init__(self, n, redT, seed=DEFAULT_SEEDS[0]):
         log.info(f"Generate grid {n}x{n} with seed {seed}")
 
         np.random.seed(seed)
         self.grid = 2 * random.randint(0, 2, size=(n, n), dtype=np.int8) - 1
-        self.T_red = np.float64(T_red)
+        self.redT = np.float64(redT)
 
     def getEnergy(self):
         mult = np.roll(self.grid, 1, axis=0) + np.roll(self.grid, -1, axis=0) + np.roll(self.grid, 1, axis=1) + np.roll(self.grid, -1, axis=1)
@@ -37,15 +53,15 @@ class Grid:
 
         return val
 
-    def getFlipDiff(self, i, j):
+    def getEnergyAt(self, i, j):
         v = self.grid[i, j]
         E = 0
-        neighbours = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+        neighs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
-        for offset in neighbours:
+        for offset in neighs:
             E += -v * self.grid.take(i + offset[0], mode="wrap", axis=0).take(j + offset[1], mode="wrap")
 
-        return -2 * E
+        return E
 
     def getAverageEnergy(self):
         return self.getEnergy() / self.grid.size
@@ -53,38 +69,38 @@ class Grid:
     def getAverageMagnetization(self):
         return np.average(self.grid)
 
-    def metroStep(self):
-        coordRow = random.randint(0, self.grid.shape[0])
-        coordCol = random.randint(0, self.grid.shape[1])
+    def metro(self):
+        i = random.randint(0, self.grid.shape[0])
+        j = random.randint(0, self.grid.shape[1])
 
-        energyDiff = self.getFlipDiff(coordRow, coordCol)
+        dE = -2 * self.getEnergyAt(i, j)
 
         accept = True
-        if energyDiff > 0.0:
-            chance = np.exp(-energyDiff / self.T_red) \
-                        if self.T_red != 0 else 0.0
+        if dE > 0.0:
+            chance = np.exp(-dE / self.redT) \
+                        if self.redT != 0 else 0.0
             accept = random.random() < chance
 
         if accept:
-            self.grid[coordRow, coordCol] *= -1
+            self.grid[i, j] *= -1
 
-    def wolffStep(self):
+    def wolff(self):
         prev_err = np.seterr(all='ignore')
-        neighbours = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+        neighs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
         i = random.randint(0, self.grid.shape[0])
         j = random.randint(0, self.grid.shape[1])
 
-        dE = self.getFlipDiff(i, j)
-        p_start = np.exp(-dE / self.T_red)
+        dE = -2 * self.getEnergyAt(i, j)
+        p_start = np.exp(-dE / self.redT)
 
         if random.rand() > p_start:
             return
 
         val0 = self.grid[i, j]
-        beta = 1 / self.T_red
+        beta = 1 / self.redT
         p = 1 - np.exp(-2.0 * beta)
-  
+
         visited = np.full(self.grid.shape, 1, dtype=np.int8)
         q = queue.Queue()
         q.put((i, j))
@@ -93,7 +109,7 @@ class Grid:
         while not q.empty():
             l = q.get()
 
-            for dl in neighbours:
+            for dl in neighs:
                 l2 = (l[0] + dl[0], l[1] + dl[1])
                 l2 = (l2[0] % self.grid.shape[0], l2[1] % self.grid.shape[1])
 
@@ -113,20 +129,115 @@ class Grid:
 
     def show(self):
         plt.figure()
-        self.plotGrid(axis=plt.gca())
+        self.plot(axis=plt.gca())
         plt.show(block=False)
 
     def plot(self, axis, **kwargs):
         axis.imshow(self.grid, clim=(0, 1), **kwargs)
 
+class ExternalGrid:
+    def __init__(self, n, t_func, t_callback=None, dE_func=None, seed=DEFAULT_SEEDS[0]):
+        """
+        The Grid object represents a square of n x n arrangement of particles with
+        spin +1/-1.
 
+        Args:
+            Int n:  The sidelength of the grid
+            Scalar|Array|Func t_func:  If Scalar, the reduced temperature of the whole grid,
+                if Array, if ndim == 1 and size == 1 the reduced temperature of the whole grid,
+                otherwise the reduced temperature at each cell.
+                If Func, a function that takes the coordinates of a cell and returns its reduced temperature.
+
+            Func dE_func:   A function that takes the coordinates of a cell and returns a modifier for its dE during flips.
+        """
+
+        log.info(f"Generate grid {n}x{n} with seed {seed}")
+
+        np.random.seed(seed)
+        self.grid = 2 * random.randint(0, 2, size=(n, n), dtype=np.int8) - 1
+
+        if np.isscalar(t_func):
+            self.T_red = t_func
+            self.t_func = lambda i, j: self.T_red
+        elif np.ndim(t_func) > 0:
+            if t_func.size == 1:
+                self.T_red = np.full(self.grid.shape, t_func[0])
+            else:
+                self.T_red = t_func
+
+            self.t_func = lambda i, j: self.T_red[i][j]
+        else:
+            self.t_func = t_func
+
+        if dE_func:
+            self.dE_func = dE_func
+        else:
+            self.dE_func = lambda i, j: 0
+
+        if t_callback:
+            self.t_callback = t_callback
+        else:
+            self.t_callback = lambda i, j, dE: None
+
+    def getEnergy(self):
+        mult = np.roll(self.grid, 1, axis=0) + np.roll(self.grid, -1, axis=0) + np.roll(self.grid, 1, axis=1) + np.roll(self.grid, -1, axis=1)
+
+        val = -np.sum(self.grid * mult)
+
+        return val
+
+    def getEnergyAt(self, i, j):
+        v = self.grid[i, j]
+        E = 0
+        neighbours = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
+        for offset in neighbours:
+            E += -v * self.grid.take(i + offset[0], mode="wrap", axis=0).take(j + offset[1], mode="wrap")
+
+        return E
+
+    def getAverageEnergy(self):
+        return self.getEnergy() / self.grid.size
+
+    def getAverageMagnetization(self):
+        return np.average(self.grid)
+
+    def metro(self):
+        i = random.randint(0, self.grid.shape[0])
+        j = random.randint(0, self.grid.shape[1])
+
+        dE = -2 * self.getEnergyAt(i, j)
+        dE += self.dE_func(i, j)
+
+        T_red = self.t_func(i, j)
+
+        accept = True
+        if dE > 0.0:
+            chance = np.exp(-dE / T_red) \
+                        if T_red != 0 else 0.0
+            accept = random.random() < chance
+
+        if accept:
+            self.t_callback(i, j, dE)
+            self.grid[i, j] *= -1
+
+    def wolff(self):
+        raise NotImplementedError
+
+    def show(self):
+        plt.figure()
+        self.plot(axis=plt.gca())
+        plt.show(block=False)
+
+    def plot(self, axis, **kwargs):
+        axis.imshow(self.grid, clim=(0, 1), **kwargs)
 
 # CW
 class TilingConstraint:
     def __init__(self, n):
         self.n = n
         self.constraints = {}
-        self.neighbours = []
+        self.neighs = []
 
     def set_constraint(self, constraint, source_wind, target_wind, *windings):
         if not constraint in self.constraints:
@@ -135,7 +246,7 @@ class TilingConstraint:
         self.constraints[constraint] += [(source_wind, target_wind, windings)]
 
     def set_neighbours(self, constraints, repetitions=1):
-        self.neighbours = constraints, repetitions
+        self.neighs = constraints, repetitions
 
     def generate(self, depth):
         q = queue.Queue()
@@ -152,14 +263,14 @@ class TilingConstraint:
         return t0
 
     def _generate(self, tile):
-        for k0, neighbour in enumerate(tile.neighbours):
+        for k0, neighbour in enumerate(tile.neighs):
             if neighbour is None:
                 continue
 
             for source_wind, target_wind, windings in self.constraints[neighbour.constraint]:
-                k = (k0 + source_wind) % len(tile.neighbours)
+                k = (k0 + source_wind) % len(tile.neighs)
 
-                if tile.neighbours[k] is not None:
+                if tile.neighs[k] is not None:
                     continue
 
                 prev = tile
@@ -169,24 +280,24 @@ class TilingConstraint:
                     if curr is None:
                         break
 
-                    i0 = curr.neighbours.index(prev)
-                    i = (i0 + winding) % len(curr.neighbours)
+                    i0 = curr.neighs.index(prev)
+                    i = (i0 + winding) % len(curr.neighs)
 
-                    prev, curr = curr, curr.neighbours[i]
+                    prev, curr = curr, curr.neighs[i]
 
                 if curr is None:
                     continue
                 else:
-                    i0 = curr.neighbours.index(prev)
-                    i = (i0 + target_wind) % len(curr.neighbours)
+                    i0 = curr.neighs.index(prev)
+                    i = (i0 + target_wind) % len(curr.neighs)
 
-                    tile.neighbours[k] = curr
-                    curr.neighbours[i] = tile
+                    tile.neighs[k] = curr
+                    curr.neighs[i] = tile
 
         if tile.depth == 0:
             return []
 
-        for i0, neighbour in enumerate(tile.neighbours):
+        for i0, neighbour in enumerate(tile.neighs):
             if neighbour is not None:
                 break
 
@@ -194,44 +305,85 @@ class TilingConstraint:
             i0 = 0
             j0 = 0
         else:
-            j0 = self.neighbours[0].index(neighbour.constraint)
+            j0 = self.neighs[0].index(neighbour.constraint)
 
         new_neighs = []
 
-        for dx in range(len(self.neighbours[0]) * self.neighbours[1]):
-            i = (i0 + dx) % len(tile.neighbours)
-            j = (j0 + dx) % len(self.neighbours[0])
+        for dx in range(len(self.neighs[0]) * self.neighs[1]):
+            i = (i0 + dx) % len(tile.neighs)
+            j = (j0 + dx) % len(self.neighs[0])
 
-            if tile.neighbours[i] is None:
-                neigh = Tile(1, self.neighbours[0][j].n)
-                neigh.constraint = self.neighbours[0][j]
+            if tile.neighs[i] is None:
+                neigh = Tile(1, self.neighs[0][j].n)
+                neigh.constraint = self.neighs[0][j]
                 neigh.depth = tile.depth - 1
 
-                tile.neighbours[i] = neigh
-                neigh.neighbours[0] = tile
+                tile.neighs[i] = neigh
+                neigh.neighs[0] = tile
 
                 new_neighs += [neigh]
 
         return new_neighs
 
-class Tile:
-    def __init__(self, spin, n_neighbours):
-        self.spin = 1#random.choice([-1.0, 1.0])#spin
-        self.neighbours = [None] * n_neighbours
-        self.visited = False
-        self.r = None
+class TileGrid(IGrid):
+    def __init__(self, constraint, depth, redT):
+        self.constraint = constraint
+        self.depth = depth
+        self.redT = redT
 
-    def corecurse(self, l, f, default=None):
+        self.rep = constraint.generate(depth=depth)
+        self.lis = self.rep.toList()
+
+    def getEnergy(self):
+        E = sum(t.getEnergyAt() for t in self.lis)
+
+        return E
+
+    def getAverageEnergy(self):
+        return self.getEnergy() / len(self.lis)
+
+    def getAverageMagnetization(self):
+        m = sum(t.spin for t in self.lis)
+
+        return m / len(self.lis)
+
+    def metro(self):
+        raise NotImplementedError
+
+    def wolff(self):
+        if self.redT <= 0:
+            return
+
+        start = random.choice(self.lis)
+
+        self.unvisit()
+        dE = -2 * start.getEnergyAt()
+        p0 = np.exp(-dE / self.redT)
+
+        if random.rand() > p0:
+            return
+
+        beta = 1 / self.redT
+        p = 1 - np.exp(-2 * beta)
+
+        start._wolff(p, start.spin)
+        self.unvisit()
+
+    def unvisit(self):
+        for t in self.lis:
+            t.visited = False
+
+    def corecurse(self, rep, f, default=None):
         q = queue.Queue()
 
-        q.put(self)
-        self.visited = True
+        q.put(rep)
+        rep.visited = True
         r = [] if default is None else default
 
         while not q.empty():
             t = q.get()
 
-            for n in t.neighbours:
+            for n in t.neighs:
                 if n is None or n.visited:
                     continue
                 n.visited = True
@@ -239,11 +391,11 @@ class Tile:
 
             r = f(t, r)
 
-        self.unvisit(l)
+        self.unvisit()
 
         return r
 
-    def display(self, l, fig=None, ax=None, show=True):
+    def display(self, fig=None, ax=None, show=True):
         if fig is None:
             fig = plt.figure()
             ax = fig.subplots()
@@ -253,22 +405,29 @@ class Tile:
         prev = 0
         r = 1.0
 
-        self.unvisit(l)
-        self._display(ax, r, orientation, r0, prev)
-        self.unvisit(l)
+        self.unvisit()
+        self.rep._display(ax, r, orientation, r0, prev)
+        self.unvisit()
 
         if show:
             fig.show()
 
         return fig, ax
 
+class Tile:
+    def __init__(self, spin, n_neighs):
+        self.spin = random.choice([-1.0, 1.0])#spin
+        self.neighs = [None] * n_neighs
+        self.visited = False
+        self.r = None
+
     def _display(self, ax, r, orientation, r0, prev):
-        n = len(self.neighbours)
+        n = len(self.neighs)
 
         dr = r / (2 * np.tan(np.pi / n))
 
         if isinstance(prev, Tile):
-            i0 = self.neighbours.index(prev)
+            i0 = self.neighs.index(prev)
 
             if self.r is None:
                 r0 = r0 + dr * orientation
@@ -295,32 +454,15 @@ class Tile:
         for di in range(n):
             i = (i0 + di) % n
 
-            if self.neighbours[i] is not None:
-                self.neighbours[i]._display(ax, r, orientation, r0 + dr * orientation, self)
+            if self.neighs[i] is not None:
+                self.neighs[i]._display(ax, r, orientation, r0 + dr * orientation, self)
 
             orientation = R.dot(orientation)
 
-    def getEnergy(self):
-        dn = -sum(self.spin * neigh.spin for neigh in self.neighbours if neigh is not None)
+    def getEnergyAt(self):
+        dn = -sum(self.spin * neigh.spin for neigh in self.neighs if neigh is not None)
 
         return dn
-
-    def wolff(self, T_red, l):
-        if T_red <= 0:
-            return
-
-        self.unvisit(l)
-        dE = -2 * self.getEnergy()
-        p0 = np.exp(-dE / T_red)
-
-        if random.rand() > p0:
-            return
-        
-        beta = 1 / T_red
-        p = 1 - np.exp(-2 * beta)
-
-        self._wolff(p, self.spin)
-        self.unvisit(l)
 
     def _wolff(self, p, v0):
         if self.visited:
@@ -329,10 +471,10 @@ class Tile:
 
         self.spin = -v0
 
-        for neigh in self.neighbours:
+        for neigh in self.neighs:
             if neigh is None:
                 continue
-            
+
             if neigh.spin == v0 and random.rand() < p:
                 neigh._wolff(p, v0)
 
@@ -346,26 +488,21 @@ class Tile:
         while not q.empty():
             t = q.get()
             l += [t]
-            
+
             for n in t._toList():
                 q.put(n)
-                
+
         for t in l:
             t.visited = False
-            
+
         return l
 
     def _toList(self):
         l = []
 
-        for neigh in self.neighbours:
+        for neigh in self.neighs:
             if neigh is not None and not neigh.visited:
                 l += [neigh]
                 neigh.visited = True
 
         return l
-
-    @classmethod
-    def unvisit(self, l):
-        for t in l:
-            t.visited = False
