@@ -45,6 +45,30 @@ def Create333333(depth):
 
     return tile
 
+def Create555(depth):
+    tri_constr = TilingConstraint(5)
+
+    tri_constr.set_neighbours([tri_constr], 5)
+
+    tri_constr.set_constraint(tri_constr, 1, -1, -1)
+    tri_constr.set_constraint(tri_constr, -1, 1, 1)
+
+    tile = tri_constr.generate(depth=depth)
+
+    return tile
+
+def Create33333(depth):
+    tri_constr = TilingConstraint(3)
+
+    tri_constr.set_neighbours([tri_constr], 3)
+
+    tri_constr.set_constraint(tri_constr, 1, -1, -1, -1, -1)
+    tri_constr.set_constraint(tri_constr, -1, 1, 1, 1, 1)
+
+    tile = tri_constr.generate(depth=depth)
+
+    return tile
+
 def Test1():
     gr = Grid(50, 1.0e0)
 
@@ -203,7 +227,7 @@ def ShowAnimate(gridsize=300, redT = 5.0,
     grid = Grid(gridsize, redT, seed)
     im = ax.imshow(grid.grid, clim=(0, 1))
 
-    def update(frame):
+    def update(frame):        
         for j in range(framechanges):
             grid.wolffStep()
         #im = ax.imshow(grid.grid, clim=(0, 1))
@@ -237,7 +261,8 @@ def CreateSeries():
 def PhaseTransition():
     import scipy.ndimage.filters as filters
 
-    grid = Grid(30, 10, DEFAULT_SEEDS[0])
+    grid = Create666(18)
+    l = grid.toList()
 
     T = []
     E = []
@@ -341,6 +366,36 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
         for i in range(epoch_time):
             grid.wolffStep()
 
-#Create666(9).display()
+def HexWolff(depth=4, T_red=4.0):
+    h = Create666(depth)
+    l = h.toList()
 
+    fig, ax = plt.subplots(figsize=(15, 15))
+    
 
+    for i in range(10):
+        h.display()
+
+        s = random.choice(l)
+        s.wolff(T_red)
+
+def AnimateTile(redT = 5.0, frameskip=1, tile=None):
+    fig, ax = plt.subplots(figsize=(15, 15))
+
+    tileList = tile.toList()
+
+    def update(frame):
+        ax.cla()
+        
+        for j in range(frameskip):
+            start = random.choice(tileList)
+            start.wolff(redT, tileList)
+
+        tile.display(tileList, fig, ax, show=False)
+        return ax.get_children()
+
+    ani = animation.FuncAnimation(fig, update, interval=33)
+    plt.show()
+    return ani
+
+    
