@@ -299,17 +299,17 @@ class Tile:
 
             orientation = R.dot(orientation)
 
-    def getFlipEnergy(self):
-        dn = sum(self.spin * neigh.spin for neigh in self.neighbours if neigh is not None)
+    def getEnergy(self):
+        dn = -sum(self.spin * neigh.spin for neigh in self.neighbours if neigh is not None)
 
-        return -4 * dn
+        return dn
 
     def wolff(self, T_red, l):
         if T_red <= 0:
             return
 
         self.unvisit(l)
-        dE = self.getFlipEnergy()
+        dE = -2 * self.getEnergy()
         p0 = np.exp(-dE / T_red)
 
         if random.rand() > p0:

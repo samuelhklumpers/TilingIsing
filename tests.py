@@ -261,24 +261,25 @@ def CreateSeries():
 def PhaseTransition():
     import scipy.ndimage.filters as filters
 
-    grid = Grid(20, 0.01, DEFAULT_SEEDS[0])
+    grid = Create666(18)
+    l = grid.toList()
 
     T = []
     E = []
-    m = []
     C = []
 
     for i in range(100):
         #grid = Grid(20, 0.01, np.random.randint(1000))
-        grid.T_red = 0.01 + i / 20
-        T += [grid.T_red]
+        T_red = 0.01 + i / 20
+        T += [T_red]
         E = []
 
         for j in range(1000):
-            grid.wolffStep()
-            E += [grid.getAverageEnergy()]
+            grid.wolff(T_red, l)
+            E_j = sum(t.getEnergy() for t in l) / len(l)
             
-        m += [grid.getAverageMagnetization()]
+            E += [E_j]
+    
         C += [np.var(E)]
 
 ##    plt.figure()
@@ -286,9 +287,6 @@ def PhaseTransition():
 ##    plt.legend()
     plt.figure()
     plt.plot(T, C, label="C")
-    plt.legend()
-    plt.figure()
-    plt.plot(T, m, label="m")
     plt.legend()
     plt.show(block=False)
 
@@ -375,9 +373,9 @@ def AnimateTile(redT = 5.0, frameskip=1, tile=None):
         
         for j in range(frameskip):
             start = random.choice(tileList)
-            start.wolff(redT)
+            start.wolff(redT, tileList)
 
-        tile.display(fig, ax, show=False)
+        tile.display(tileList, fig, ax, show=False)
         return ax.get_children()
 
     ani = animation.FuncAnimation(fig, update, interval=33)
