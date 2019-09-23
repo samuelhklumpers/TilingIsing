@@ -19,8 +19,10 @@ fh = logging.FileHandler("log.txt", mode="w")
 stdout_handle = logging.StreamHandler(sys.stdout)
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
-log.addHandler(fh)
-log.addHandler(stdout_handle)
+
+if not log.hasHandlers():
+    log.addHandler(fh)
+    log.addHandler(stdout_handle)
 
 class IGrid:
     def getEnergy(self):
