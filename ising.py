@@ -85,7 +85,7 @@ class SquareGrid(IGrid):
 
         if accept:
             self.grid[i, j] *= -1
-
+            
     def wolff(self):
         prev_err = np.seterr(all='ignore')
         neighs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -335,6 +335,9 @@ class TileGrid(IGrid):
 
         self.rep = constraint.generate(depth=depth)
         self.lis = self.rep.toList()
+        self.count = len(self.lis)
+
+        self.unvisit()
 
     def getEnergy(self):
         E = sum(t.getEnergyAt() for t in self.lis)
@@ -356,9 +359,9 @@ class TileGrid(IGrid):
         if self.redT <= 0:
             return
 
-        start = random.choice(self.lis)
+        start = int(self.count * random.rand())
+        start = self.lis[start]
 
-        self.unvisit()
         dE = -2 * start.getEnergyAt()
         p0 = np.exp(-dE / self.redT)
 
