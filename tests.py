@@ -1,4 +1,4 @@
-from ising import Grid, DEFAULT_SEEDS, TilingConstraint, log
+from ising import SquareGrid, DEFAULT_SEEDS, TilingConstraint, log, TileGrid
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.animation import PillowWriter
@@ -13,9 +13,9 @@ def Create666(depth):
     hex_constr.set_constraint(hex_constr, 1, -1, -1)
     hex_constr.set_constraint(hex_constr, -1, 1, 1)
 
-    tile = hex_constr.generate(depth=depth)
+    tg = TileGrid(hex_constr, depth, 1.0)
 
-    return tile
+    return tg
 
 def Create3636(depth):
     tri_constr = TilingConstraint(3)
@@ -71,18 +71,18 @@ def Create33333(depth):
 
 def Create4444(depth):
     sq_constr = TilingConstraint(4)
-    
+
     sq_constr.set_neighbours([sq_constr], 4)
-    
+
     sq_constr.set_constraint(sq_constr, 1, -1, -1, -1)
     sq_constr.set_constraint(sq_constr, -1, 1, 1, 1)
-    
+
     tile = sq_constr.generate(depth=depth)
-    
+
     return tile
 
 def Exp2_6_1():
-    gr = Grid(20, 5.0)
+    gr = SquareGrid(20, 5.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 35000]
 
@@ -95,7 +95,7 @@ def Exp2_6_1():
         gr.show()
 
 def Exp2_6_2():
-    gr = Grid(20, 10.0)
+    gr = SquareGrid(20, 10.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
 
@@ -110,7 +110,7 @@ def Exp2_6_2():
         gr.show()
 
 def Exp2_6_3():
-    gr = Grid(20, 0.5)
+    gr = SquareGrid(20, 0.5)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
 
@@ -129,7 +129,7 @@ def Exp2_6_4():
     print("At T=0 it converges to plainly +1 or -1, so it is not that interesting.\n\
     Anyway:")
 
-    gr = Grid(20, 0.0)
+    gr = SquareGrid(20, 0.0)
     numberOfAttempts = 0
     attempts = [1e1, 1e2, 1e3, 1e4, 25000]
 
@@ -158,7 +158,7 @@ def Exp2_6_5():
 
     for i in range(0, len(seeds)):
         seed = seeds[i]
-        gr = Grid(20, 3.0, seed=seed)
+        gr = SquareGrid(20, 3.0, seed=seed)
         numberOfAttempts = 0
 
         f, ax = plt.subplots(nrows=1, ncols=len(attempts), sharey=True)
@@ -178,7 +178,7 @@ def Exp2_6_5():
         plt.show()
 
 def GenerateSeries():
-    grid = Grid(50, 0.5, DEFAULT_SEEDS[0])
+    grid = SquareGrid(50, 0.5, DEFAULT_SEEDS[0])
 
     for i in range(100):
         with open(f"series\\series{i:03}.dat", mode="wb") as f:
@@ -214,7 +214,7 @@ def ShowAnimate(gridsize=300, redT = 5.0,
 
     fig, ax = plt.subplots(figsize=(15, 15))
 
-    grid = Grid(gridsize, redT, seed)
+    grid = SquareGrid(gridsize, redT, seed)
     im = ax.imshow(grid.grid, clim=(0, 1))
 
     def update(frame):
@@ -232,7 +232,7 @@ def ShowAnimate(gridsize=300, redT = 5.0,
     return ani
 
 def CreateSeries():
-    grid = Grid(30, 10, DEFAULT_SEEDS[0])
+    grid = SquareGrid(30, 10, DEFAULT_SEEDS[0])
 
     ims = []
     fig = plt.figure()
@@ -251,10 +251,7 @@ def CreateSeries():
 def PhaseTransition():
     import scipy.ndimage.filters as filters
 
-    
-
-    tile = Create4444(40)#21)
-    l = tile.toList()
+    tileGrid = Create666(10)
 
     T = []
     E = []
@@ -265,16 +262,16 @@ def PhaseTransition():
         redT = 10 - i / 10
         T += [redT]
         for j in range(1000):
-            tile.wolff(redT, l)
+            tileGrid.wolff()
 
         E2 = []
 
         for _ in range(100):
             for _ in range(100):
-                tile.wolff(redT, l)
-            E2 += [tile.getAverageEnergy()]
+                tileGrid.wolff()
+            E2 += [tileGrid.getAverageEnergy()]
 
-        E += [tile.getAverageEnergy()]
+        E += [tileGrid.getAverageEnergy()]
         #m += [tile.getAverageMagnetization()]
 
         C += [np.var(E2)/(redT)**2]
@@ -301,7 +298,7 @@ def PhaseTransition():
 
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
-    grid = Grid(gridsize, redT, DEFAULT_SEEDS[0])
+    grid = SquareGrid(gridsize, redT, DEFAULT_SEEDS[0])
 
     ims = []
     fig = plt.figure(figsize=(15, 15))
@@ -318,7 +315,7 @@ def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
     ani.save(seriesname, writer=PillowWriter(fps=10))
 
 def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
-    grid = Grid(n, redT)
+    grid = SquareGrid(n, redT)
 
     prev_top = 4
     prev_bot = -4
@@ -359,31 +356,25 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
             grid.wolff()
 
 def HexWolff(depth=4, redT=4.0):
-    h = Create666(depth)
-    l = h.toList()
+    tileGrid = Create666(depth)
 
     fig, ax = plt.subplots(figsize=(15, 15))
 
 
     for i in range(10):
-        h.display(l)
+        tileGrid.display()
+        tileGrid.wolff()
 
-        s = random.choice(l)
-        s.wolff(redT)
-
-def AnimateTile(redT = 5.0, frameskip=1, tile=None):
+def AnimateTile(tileGrid, redT = 5.0, frameskip=1):
     fig, ax = plt.subplots(figsize=(15, 15))
-
-    tileList = tile.toList()
 
     def update(frame):
         ax.cla()
 
         for j in range(frameskip):
-            start = random.choice(tileList)
-            start.wolff(redT, tileList)
+            tileGrid.wolff()
 
-        tile.display(tileList, fig, ax, show=False)
+        tileGrid.display(fig, ax, show=False)
         return ax.get_children()
 
     ani = animation.FuncAnimation(fig, update, interval=33)

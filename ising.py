@@ -22,7 +22,23 @@ log.setLevel(logging.INFO)
 log.addHandler(fh)
 log.addHandler(stdout_handle)
 
-class Grid:
+class IGrid:
+    def getEnergy(self):
+        ...
+
+    def getAverageEnergy(self):
+        ...
+
+    def getAverageMagnetization(self):
+        ...
+
+    def metro(self):
+        ...
+
+    def wolff(self):
+        ...
+
+class SquareGrid(IGrid):
     def __init__(self, n, redT, seed=DEFAULT_SEEDS[0]):
         log.info(f"Generate grid {n}x{n} with seed {seed}")
 
@@ -134,7 +150,7 @@ class ExternalGrid:
 
             Func dE_func:   A function that takes the coordinates of a cell and returns a modifier for its dE during flips.
         """
-        
+
         log.info(f"Generate grid {n}x{n} with seed {seed}")
 
         np.random.seed(seed)
@@ -162,22 +178,22 @@ class ExternalGrid:
             self.t_callback = t_callback
         else:
             self.t_callback = lambda i, j, dE: None
-            
+
     def getEnergy(self):
         mult = np.roll(self.grid, 1, axis=0) + np.roll(self.grid, -1, axis=0) + np.roll(self.grid, 1, axis=1) + np.roll(self.grid, -1, axis=1)
-        
+
         val = -np.sum(self.grid * mult)
-        
+
         return val
-        
+
     def getEnergyAt(self, i, j):
         v = self.grid[i, j]
         E = 0
         neighbours = [(1, 0), (-1, 0), (0, 1), (0, -1)]
-        
+
         for offset in neighbours:
             E += -v * self.grid.take(i + offset[0], mode="wrap", axis=0).take(j + offset[1], mode="wrap")
-            
+
         return E
 
     def getAverageEnergy(self):
@@ -189,8 +205,8 @@ class ExternalGrid:
     def metro(self):
         i = random.randint(0, self.grid.shape[0])
         j = random.randint(0, self.grid.shape[1])
-        
-        dE = -2 * self.getFlipDiff(i, j)
+
+        dE = -2 * self.getEnergyAt(i, j)
         dE += self.dE_func(i, j)
 
         T_red = self.t_func(i, j)
@@ -204,12 +220,15 @@ class ExternalGrid:
         if accept:
             self.t_callback(i, j, dE)
             self.grid[i, j] *= -1
-            
+
+    def wolff(self):
+        raise NotImplementedError
+
     def show(self):
         plt.figure()
         self.plot(axis=plt.gca())
         plt.show(block=False)
-        
+
     def plot(self, axis, **kwargs):
         axis.imshow(self.grid, clim=(0, 1), **kwargs)
 
@@ -306,18 +325,59 @@ class TilingConstraint:
 
         return new_neighs
 
-class Tile:
-    def __init__(self, spin, n_neighs):
-        self.spin = random.choice([-1.0, 1.0])#spin
-        self.neighs = [None] * n_neighs
-        self.visited = False
-        self.r = None
+class TileGrid(IGrid):
+    def __init__(self, constraint, depth, redT):
+        self.constraint = constraint
+        self.depth = depth
+        self.redT = redT
 
-    def corecurse(self, l, f, default=None):
+        self.rep = constraint.generate(depth=depth)
+        self.lis = self.rep.toList()
+
+    def getEnergy(self):
+        E = sum(t.getEnergyAt() for t in self.lis)
+
+        return E
+
+    def getAverageEnergy(self):
+        return self.getEnergy() / len(self.lis)
+
+    def getAverageMagnetization(self):
+        m = sum(t.spin for t in self.lis)
+
+        return m / len(self.lis)
+
+    def metro(self):
+        raise NotImplementedError
+
+    def wolff(self):
+        if self.redT <= 0:
+            return
+
+        start = random.choice(self.lis)
+
+        self.unvisit()
+        dE = -2 * start.getEnergyAt()
+        p0 = np.exp(-dE / self.redT)
+
+        if random.rand() > p0:
+            return
+
+        beta = 1 / self.redT
+        p = 1 - np.exp(-2 * beta)
+
+        start._wolff(p, start.spin)
+        self.unvisit()
+
+    def unvisit(self):
+        for t in self.lis:
+            t.visited = False
+
+    def corecurse(self, rep, f, default=None):
         q = queue.Queue()
 
-        q.put(self)
-        self.visited = True
+        q.put(rep)
+        rep.visited = True
         r = [] if default is None else default
 
         while not q.empty():
@@ -331,11 +391,11 @@ class Tile:
 
             r = f(t, r)
 
-        self.unvisit(l)
+        self.unvisit()
 
         return r
 
-    def display(self, l, fig=None, ax=None, show=True):
+    def display(self, fig=None, ax=None, show=True):
         if fig is None:
             fig = plt.figure()
             ax = fig.subplots()
@@ -345,14 +405,21 @@ class Tile:
         prev = 0
         r = 1.0
 
-        self.unvisit(l)
-        self._display(ax, r, orientation, r0, prev)
-        self.unvisit(l)
+        self.unvisit()
+        self.rep._display(ax, r, orientation, r0, prev)
+        self.unvisit()
 
         if show:
             fig.show()
 
         return fig, ax
+
+class Tile:
+    def __init__(self, spin, n_neighs):
+        self.spin = random.choice([-1.0, 1.0])#spin
+        self.neighs = [None] * n_neighs
+        self.visited = False
+        self.r = None
 
     def _display(self, ax, r, orientation, r0, prev):
         n = len(self.neighs)
@@ -397,23 +464,6 @@ class Tile:
 
         return dn
 
-    def wolff(self, redT, l):
-        if redT <= 0:
-            return
-
-        self.unvisit(l)
-        dE = -2 * self.getEnergy()
-        p0 = np.exp(-dE / redT)
-
-        if random.rand() > p0:
-            return
-
-        beta = 1 / redT
-        p = 1 - np.exp(-2 * beta)
-
-        self._wolff(p, self.spin)
-        self.unvisit(l)
-
     def _wolff(self, p, v0):
         if self.visited:
             return
@@ -456,8 +506,3 @@ class Tile:
                 neigh.visited = True
 
         return l
-
-    @classmethod
-    def unvisit(self, l):
-        for t in l:
-            t.visited = False
