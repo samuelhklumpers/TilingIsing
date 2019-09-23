@@ -303,7 +303,7 @@ def PhaseTransition():
     plt.show(block=False)
     
     plt.figure()
-    plt.plot(T, C, label="C")
+    plt.plot(T, m, label="m")
     plt.legend()
     plt.show(block=False)
 
