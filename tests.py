@@ -69,27 +69,17 @@ def Create33333(depth):
 
     return tile
 
-def Test1():
-    gr = Grid(50, 1.0e0)
-
-    for i in range(25000):
-        gr.metroStep()
-
-    gr.show()
-
-def Test2():
-    gr = Grid(200, 0.5)
-
-    for i in range(2500000):
-        gr.metroStep()
-
-    gr.show()
-    print(gr.getAverageEnergy(), gr.getAverageMagnetization())
-
-    for i in range(1000000):
-        gr.metroStep()
-
-    gr.show()
+def Create4444(depth):
+    sq_constr = TilingConstraint(4)
+    
+    sq_constr.set_neighbours([sq_constr], 4)
+    
+    sq_constr.set_constraint(sq_constr, 1, -1, -1, -1)
+    sq_constr.set_constraint(sq_constr, -1, 1, 1, 1)
+    
+    tile = sq_constr.generate(depth=depth)
+    
+    return tile
 
 def Exp2_6_1():
     gr = Grid(20, 5.0)
@@ -227,7 +217,7 @@ def ShowAnimate(gridsize=300, redT = 5.0,
     grid = Grid(gridsize, redT, seed)
     im = ax.imshow(grid.grid, clim=(0, 1))
 
-    def update(frame):        
+    def update(frame):
         for j in range(framechanges):
             grid.wolffStep()
         #im = ax.imshow(grid.grid, clim=(0, 1))
@@ -248,7 +238,7 @@ def CreateSeries():
     fig = plt.figure()
 
     for i in range(100):
-        for j in range(1000):
+        for _ in range(1000):
             grid.metroStep()
 
         ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
@@ -261,51 +251,53 @@ def CreateSeries():
 def PhaseTransition():
     import scipy.ndimage.filters as filters
 
-    grid = Create666(18)
-    l = grid.toList()
+    
+
+    tile = Create4444(40)#21)
+    l = tile.toList()
 
     T = []
     E = []
-    m = []
+    #m = []
     C = []
 
     for i in range(0, 100):
-        grid.T_red = 0.1 + i / 10
-        T += [grid.T_red]
+        redT = 10 - i / 10
+        T += [redT]
         for j in range(1000):
-            grid.wolffStep()
+            tile.wolff(redT, l)
 
         E2 = []
-        
-        for j in range(10000):
-            grid.wolffStep()
-            if not j % 100:
-                E2 += [grid.getAverageEnergy()]
 
-        E += [grid.getAverageEnergy()]
-        m += [grid.getAverageMagnetization()]
-        
-        C += [np.var(E2)/(grid.T_red)**2]
+        for _ in range(100):
+            for _ in range(100):
+                tile.wolff(redT, l)
+            E2 += [tile.getEnergy()/len(l)]
+
+        E += [tile.getEnergy()/len(l)]
+        #m += [tile.getAverageMagnetization()]
+
+        C += [np.var(E2)/(redT)**2]
 
     plt.figure()
     plt.plot(T, filters.gaussian_filter1d(E, 5), label="E")
     plt.legend()
-    
+
     plt.figure()
     plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
     plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
     plt.legend()
     plt.show(block=False)
-    
+
     plt.figure()
     plt.plot(T, C, label="CFromVar")
     plt.legend()
     plt.show(block=False)
-    
-    plt.figure()
-    plt.plot(T, m, label="m")
-    plt.legend()
-    plt.show(block=False)
+
+    #plt.figure()
+    #plt.plot(T, m, label="m")
+    #plt.legend()
+    #plt.show(block=False)
 
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
@@ -366,18 +358,18 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
         for i in range(epoch_time):
             grid.wolffStep()
 
-def HexWolff(depth=4, T_red=4.0):
+def HexWolff(depth=4, redT=4.0):
     h = Create666(depth)
     l = h.toList()
 
     fig, ax = plt.subplots(figsize=(15, 15))
-    
+
 
     for i in range(10):
-        h.display()
+        h.display(l)
 
         s = random.choice(l)
-        s.wolff(T_red)
+        s.wolff(redT)
 
 def AnimateTile(redT = 5.0, frameskip=1, tile=None):
     fig, ax = plt.subplots(figsize=(15, 15))
@@ -386,7 +378,7 @@ def AnimateTile(redT = 5.0, frameskip=1, tile=None):
 
     def update(frame):
         ax.cla()
-        
+
         for j in range(frameskip):
             start = random.choice(tileList)
             start.wolff(redT, tileList)
@@ -398,4 +390,4 @@ def AnimateTile(redT = 5.0, frameskip=1, tile=None):
     plt.show()
     return ani
 
-    
+
