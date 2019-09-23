@@ -37,7 +37,7 @@ class Grid:
 
         return val
 
-    def getFlipDiff(self, i, j):
+    def getEnergyAt(self, i, j):
         v = self.grid[i, j]
         E = 0
         neighs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -53,11 +53,11 @@ class Grid:
     def getAverageMagnetization(self):
         return np.average(self.grid)
 
-    def metroStep(self):
+    def metro(self):
         i = random.randint(0, self.grid.shape[0])
         j = random.randint(0, self.grid.shape[1])
 
-        dE = self.getFlipDiff(i, j)
+        dE = self.getEnergyAt(i, j)
 
         accept = True
         if dE > 0.0:
@@ -68,14 +68,14 @@ class Grid:
         if accept:
             self.grid[i, j] *= -1
 
-    def wolffStep(self):
+    def wolff(self):
         prev_err = np.seterr(all='ignore')
         neighs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
         i = random.randint(0, self.grid.shape[0])
         j = random.randint(0, self.grid.shape[1])
 
-        dE = self.getFlipDiff(i, j)
+        dE = self.getEnergyAt(i, j)
         p_start = np.exp(-dE / self.redT)
 
         if random.rand() > p_start:
@@ -300,7 +300,7 @@ class Tile:
 
             orientation = R.dot(orientation)
 
-    def getEnergy(self):
+    def getEnergyAt(self):
         dn = -sum(self.spin * neigh.spin for neigh in self.neighs if neigh is not None)
 
         return dn

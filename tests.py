@@ -88,7 +88,7 @@ def Exp2_6_1():
 
     for att in attempts:
         while numberOfAttempts < att:
-            gr.metroStep()
+            gr.metro()
             numberOfAttempts += 1
 
         log.info(f"At attempts {numberOfAttempts}")
@@ -101,7 +101,7 @@ def Exp2_6_2():
 
     for att in attempts:
         while numberOfAttempts < att:
-            gr.metroStep()
+            gr.metro()
             numberOfAttempts += 1
 
         log.info(f"At attempts {numberOfAttempts}")
@@ -116,7 +116,7 @@ def Exp2_6_3():
 
     for att in attempts:
         while numberOfAttempts < att:
-            gr.metroStep()
+            gr.metro()
             numberOfAttempts += 1
         log.info(f"At attempts {numberOfAttempts}")
         log.info("Average momentum: {}".format(gr.getAverageMagnetization()))
@@ -135,7 +135,7 @@ def Exp2_6_4():
 
     for att in attempts:
         while numberOfAttempts < att:
-            gr.metroStep()
+            gr.metro()
             numberOfAttempts += 1
 
         log.info(f"At attempts {numberOfAttempts}")
@@ -168,7 +168,7 @@ def Exp2_6_5():
         for j in range(0, len(attempts)):
             att = attempts[j]
             while numberOfAttempts < att:
-                gr.metroStep()
+                gr.metro()
                 numberOfAttempts += 1
             #print(f"At attempts {numberOfAttempts}")
             #print("Average momentum: {}".format(GetAverageMomentum(gr)))
@@ -185,7 +185,7 @@ def GenerateSeries():
             pickle.dump(grid.grid, f)
 
         for j in range(100000):
-            grid.metroStep()
+            grid.metro()
 
 def AnimateSeries():
     fig = plt.figure()
@@ -219,7 +219,7 @@ def ShowAnimate(gridsize=300, redT = 5.0,
 
     def update(frame):
         for j in range(framechanges):
-            grid.wolffStep()
+            grid.wolff()
         #im = ax.imshow(grid.grid, clim=(0, 1))
         if True or (frame % 50) == 0:
             frame = frame
@@ -239,7 +239,7 @@ def CreateSeries():
 
     for i in range(100):
         for _ in range(1000):
-            grid.metroStep()
+            grid.metro()
 
         ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
 
@@ -272,9 +272,9 @@ def PhaseTransition():
         for _ in range(100):
             for _ in range(100):
                 tile.wolff(redT, l)
-            E2 += [tile.getEnergy()/len(l)]
+            E2 += [tile.getAverageEnergy()]
 
-        E += [tile.getEnergy()/len(l)]
+        E += [tile.getAverageEnergy()]
         #m += [tile.getAverageMagnetization()]
 
         C += [np.var(E2)/(redT)**2]
@@ -308,7 +308,7 @@ def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
 
     for i in range(frames):
         for j in range(framechanges):
-            grid.wolffStep()
+            grid.wolff()
 
         ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
 
@@ -339,12 +339,12 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
             top = max(E, top)
             bot = min(E, bot)
 
-            grid.wolffStep()
+            grid.wolff()
 
         if top > prev_top and bot < prev_bot:
             for j in range(1):
                 for i in range(epoch_time):
-                    grid.wolffStep()
+                    grid.wolff()
 
                 E_axis += [grid.getAverageEnergy()]
 
@@ -356,7 +356,7 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
         prev_top, prev_bot = top, bot
 
         for i in range(epoch_time):
-            grid.wolffStep()
+            grid.wolff()
 
 def HexWolff(depth=4, redT=4.0):
     h = Create666(depth)
