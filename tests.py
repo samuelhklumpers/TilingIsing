@@ -266,25 +266,42 @@ def PhaseTransition():
 
     T = []
     E = []
+    m = []
     C = []
 
-    for i in range(100):
-        #grid = Grid(20, 0.01, np.random.randint(1000))
-        T_red = 0.01 + i / 20
-        T += [T_red]
-        E = []
-
+    for i in range(0, 100):
+        grid.T_red = 0.1 + i / 10
+        T += [grid.T_red]
         for j in range(1000):
-            grid.wolff(T_red, l)
-            E_j = sum(t.getEnergy() for t in l) / len(l)
-            
-            E += [E_j]
-    
-        C += [np.var(E)]
+            grid.wolffStep()
 
-##    plt.figure()
-##    plt.plot(T, filters.gaussian_filter1d(E, 0.00001), label="E")
-##    plt.legend()
+        E2 = []
+        
+        for j in range(10000):
+            grid.wolffStep()
+            if not j % 100:
+                E2 += [grid.getAverageEnergy()]
+
+        E += [grid.getAverageEnergy()]
+        m += [grid.getAverageMagnetization()]
+        
+        C += [np.var(E2)/(grid.T_red)**2]
+
+    plt.figure()
+    plt.plot(T, filters.gaussian_filter1d(E, 5), label="E")
+    plt.legend()
+    
+    plt.figure()
+    plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
+    plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
+    plt.legend()
+    plt.show(block=False)
+    
+    plt.figure()
+    plt.plot(T, C, label="CFromVar")
+    plt.legend()
+    plt.show(block=False)
+    
     plt.figure()
     plt.plot(T, C, label="C")
     plt.legend()
@@ -348,7 +365,6 @@ def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
 
         for i in range(epoch_time):
             grid.wolffStep()
-
 
 def HexWolff(depth=4, T_red=4.0):
     h = Create666(depth)

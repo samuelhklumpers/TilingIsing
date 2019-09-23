@@ -14,6 +14,7 @@ import queue
 
 DEFAULT_SEEDS = [2019090814]
 
+#logging.reset()
 fh = logging.FileHandler("log.txt", mode="w")
 stdout_handle = logging.StreamHandler(sys.stdout)
 log = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class Grid:
         for offset in neighbours:
             E += -v * self.grid.take(i + offset[0], mode="wrap", axis=0).take(j + offset[1], mode="wrap")
 
-        return -4 * E
+        return -2 * E
 
     def getAverageEnergy(self):
         return self.getEnergy() / self.grid.size
@@ -82,8 +83,8 @@ class Grid:
 
         val0 = self.grid[i, j]
         beta = 1 / self.T_red
-        p = 1 - np.exp(-2 * beta)
-
+        p = 1 - np.exp(-2.0 * beta)
+  
         visited = np.full(self.grid.shape, 1, dtype=np.int8)
         q = queue.Queue()
         q.put((i, j))
