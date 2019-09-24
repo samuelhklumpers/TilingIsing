@@ -367,35 +367,42 @@ class TileGrid(IGrid):
 
         beta = 1 / self.redT
         p = 1 - np.exp(-2 * beta)
+        v0 = start.spin
 
-        start._wolff(p, start.spin)
-        self.unvisit()
+        self.corecurse((start, ()), lambda rep, ret: start.wolff(rep, p, v0))
 
     def unvisit(self):
         for t in self.lis:
             t.visited = False
 
     def corecurse(self, rep, f, default=None):
+        # f: tile, ret, *args -> ([(new_tiles, (new_args))], new_ret)
+        #import pdb
+        #pdb.set_trace()
+
         q = queue.Queue()
 
         q.put(rep)
-        rep.visited = True
-        r = [] if default is None else default
+        rep[0].visited = True
+        ret = [] if default is None else default
+
+        visited = set()
 
         while not q.empty():
-            t = q.get()
+            tile, args = q.get()
 
-            for n in t.neighs:
-                if n is None or n.visited:
-                    continue
-                n.visited = True
-                q.put(n)
+            new, ret = f(tile, ret, *args)
 
-            r = f(t, r)
+            for n in new:
+                if n[0] is not None and not n[0].visited:
+                    n[0].visited = True
+                    q.put(n)
+                    visited.add(n[0])
 
-        self.unvisit()
+        for tile in visited:
+            tile.visited = False
 
-        return r
+        return ret
 
     def display(self, fig=None, ax=None, show=True):
         if fig is None:
@@ -408,8 +415,8 @@ class TileGrid(IGrid):
         r = 1.0
 
         self.unvisit()
-        self.rep._display(ax, r, orientation, r0, prev)
-        self.unvisit()
+
+        self.corecurse((self.rep, (orientation, r0, prev)), lambda rep, ret, orientation, r0, prev: self.rep.display(rep, ax, r, orientation, r0, prev))
 
         if show:
             fig.show()
@@ -423,7 +430,8 @@ class Tile:
         self.visited = False
         self.r = None
 
-    def _display(self, ax, r, orientation, r0, prev):
+    @staticmethod
+    def display(self, ax, r, orientation, r0, prev):
         n = len(self.neighs)
 
         dr = r / (2 * np.tan(np.pi / n))
@@ -435,15 +443,9 @@ class Tile:
                 r0 = r0 + dr * orientation
 
                 self.r = r0
-
-            ax.plot([self.r[0], prev.r[0]], [self.r[1], prev.r[1]], 'k-', zorder=3)
         else:
             i0 = prev
             self.r = r0
-
-        if self.visited:
-            return
-        self.visited = True
 
         mfc = 'b' if self.spin < 0 else 'r'
         ax.scatter(self.r[0], self.r[1], s=400, c=mfc, marker='o', alpha=1, zorder=4)
@@ -453,32 +455,42 @@ class Tile:
         c, s = np.cos(2 * np.pi / n), np.sin(2 * np.pi / n)
         R = np.array([[c, s], [-s, c]])
 
+        new = []
+
         for di in range(n):
             i = (i0 + di) % n
 
-            if self.neighs[i] is not None:
-                self.neighs[i]._display(ax, r, orientation, r0 + dr * orientation, self)
+            if self.neighs[i] is not None and self.neighs[i] != prev:
+                new_r = r0 + dr * orientation
+                
+                new += [(self.neighs[i], (orientation, new_r, self))]
+
+                ax.plot([self.r[0], new_r[0]], [self.r[1], new_r[1]], 'k-', zorder=3)
 
             orientation = R.dot(orientation)
+
+        return new, []
 
     def getEnergyAt(self):
         dn = -sum(self.spin * neigh.spin for neigh in self.neighs if neigh is not None)
 
         return dn
 
-    def _wolff(self, p, v0):
-        if self.visited:
-            return
-        self.visited = True
-
+    @staticmethod
+    def wolff(self, p, v0):
         self.spin = -v0
+
+        ret = []
+        new = []
 
         for neigh in self.neighs:
             if neigh is None:
                 continue
 
             if neigh.spin == v0 and random.rand() < p:
-                neigh._wolff(p, v0)
+                new += [(neigh, ())]
+
+        return new, ret
 
     def toList(self):
         l = []
