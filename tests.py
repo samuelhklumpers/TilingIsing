@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 import os
 from numpy import random
+from uncertainties import ufloat
 
 def Create666(depth):
     hex_constr = TilingConstraint(6)
@@ -248,54 +249,61 @@ def CreateSeries():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
-def PhaseTransition():
-    import scipy.ndimage.filters as filters
-
-    tileGrid = Create666(10)
-
-    T = []
+def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_t=100,
+                    E_samples=100, sample_step=100, show=False):
     E = []
-    #m = []
+    m = []
     C = []
 
-    for i in range(0, 100):
-        redT = 10 - i / 10
-        T += [redT]
-        for j in range(1000):
-            tileGrid.wolff()
+    for temp in T:
+        grid.redT = temp
+        
+        for _ in range(settle_t):
+            grid.wolff()
 
         E2 = []
 
-        for _ in range(100):
-            for _ in range(100):
-                tileGrid.wolff()
-            E2 += [tileGrid.getAverageEnergy()]
+        for _ in range(E_samples):
+            for _ in range(sample_step):
+                grid.wolff()
+            E2 += [grid.getAverageEnergy()]
 
-        E += [tileGrid.getAverageEnergy()]
-        #m += [tile.getAverageMagnetization()]
+        E += [np.mean(E2)]
+        m += [grid.getAverageMagnetization()]
 
-        C += [np.var(E2)/(redT)**2]
+        C += [np.var(E2) / temp ** 2]
 
-    plt.figure()
-    plt.plot(T, filters.gaussian_filter1d(E, 5), label="E")
-    plt.legend()
+    if show:
+        plt.figure()
+        plt.plot(T, E, label="E")
+        plt.legend()
 
-    plt.figure()
-    plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
-    plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
-    plt.legend()
-    plt.show(block=False)
+    ##    plt.figure()
+    ##    plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
+    ##    plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
+    ##    plt.legend()
+    ##    plt.show(block=False)
 
-    plt.figure()
-    plt.plot(T, C, label="CFromVar")
-    plt.legend()
-    plt.show(block=False)
+        plt.figure()
+        plt.plot(T, C, label="CFromVar")
+        plt.legend()
+        plt.show(block=False)
 
-    #plt.figure()
-    #plt.plot(T, m, label="m")
-    #plt.legend()
-    #plt.show(block=False)
+        plt.figure()
+        plt.plot(T, m, label="m")
+        plt.legend()
+        plt.show(block=False)
 
+    return T[np.argmax(C)]
+
+def TrialCriticalTemp(new_grid, num_trials=20, T=np.linspace(1, 10), settle_t=100,
+                        E_samples=100, sample_step=100):
+
+    T_crits = [FindCriticalTemp(new_grid(), T=T, settle_t=settle_t, E_samples=E_samples, sample_step=sample_step, show=False)
+            for _ in range(num_trials)]
+
+    return ufloat(np.mean(T_crits), np.std(T_crits) / np.sqrt(len(T_crits)))
+    
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
     grid = SquareGrid(gridsize, redT, DEFAULT_SEEDS[0])
