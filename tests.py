@@ -29,9 +29,7 @@ def Create3636(depth):
     hex_constr.set_constraint(tri_constr, 1, -1, -1, -1)
     hex_constr.set_constraint(tri_constr, -1, 1, 1, 1)
 
-    tile = hex_constr.generate(depth=depth)
-
-    return tile
+    return TileGrid(hex_constr, depth, 1.0)
 
 def Create333333(depth):
     tri_constr = TilingConstraint(3)
