@@ -31,7 +31,7 @@ def Create3636(depth, seed=None):
     hex_constr.set_constraint(tri_constr, 1, -1, -1, -1)
     hex_constr.set_constraint(tri_constr, -1, 1, 1, 1)
 
-    tile = TileGrid(hex_constr, depth=depth, seed=seed, createdID="Create3636")
+    tile = TileGrid(hex_constr, depth, 1.0, seed=seed, createID="Create3636")
 
     return tile
 
@@ -43,7 +43,7 @@ def Create333333(depth, seed=None):
     tri_constr.set_constraint(tri_constr, 1, -1, -1, -1, -1, -1)
     tri_constr.set_constraint(tri_constr, -1, 1, 1, 1, 1, 1)
 
-    tile = TileGrid(tri_constr, depth=depth, seed=seed, createID="Create333333")
+    tile = TileGrid(tri_constr, depth, 1.0, seed=seed, createID="Create333333")
 
     return tile
 
@@ -55,7 +55,7 @@ def Create555(depth, seed=None):
     tri_constr.set_constraint(tri_constr, 1, -1, -1)
     tri_constr.set_constraint(tri_constr, -1, 1, 1)
 
-    tile = TileGrid(tri_constr, depth=depth, seed=seed, createID="Create555")
+    tile = TileGrid(tri_constr, depth, 1.0, seed=seed, createID="Create555")
 
     return tile
 
@@ -67,7 +67,7 @@ def Create33333(depth, seed=None):
     tri_constr.set_constraint(tri_constr, 1, -1, -1, -1, -1)
     tri_constr.set_constraint(tri_constr, -1, 1, 1, 1, 1)
 
-    tile = TileGrid(tri_constr, depth=depth, seed=seed, createID="Create33333")
+    tile = TileGrid(tri_constr, depth, 1.0, seed=seed, createID="Create33333")
 
     return tile
 
@@ -79,7 +79,7 @@ def Create4444(depth, seed=None):
     sq_constr.set_constraint(sq_constr, 1, -1, -1, -1)
     sq_constr.set_constraint(sq_constr, -1, 1, 1, 1)
 
-    tile = TileGrid(sq_constr, depth=depth, seed=seed, createID="Create4444")
+    tile = TileGrid(sq_constr, depth, 1.0, seed=seed, createID="Create4444")
 
     return tile
 
@@ -250,8 +250,8 @@ def CreateSeries():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
-def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_t=100,
-                    E_samples=100, sample_step=100, show=False,
+def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
+                    E_samples=50, sample_step_factor=2.0, show=False,
                     write_to_file=True, trial_seed=None, trial_index=None,
                     trial_length=None):
     E = []
@@ -260,15 +260,19 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_t=100,
 
     for temp in T:
         grid.redT = temp
-        
-        for _ in range(settle_t):
-            grid.wolff()
+        log.info(f"Calculating at temperature {temp:.3f}")
+
+        remaining = settle_factor * grid.getSize()
+        while remaining > 0:
+            remaining -= grid.wolff()
 
         E2 = []
 
         for _ in range(E_samples):
-            for _ in range(sample_step):
-                grid.wolff()
+            remaining = sample_step_factor * grid.getSize()
+            while remaining > 0:
+                remaining -= grid.wolff()
+            
             E2 += [grid.getAverageEnergy()]
 
         E += [np.mean(E2)]
@@ -297,7 +301,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_t=100,
         plt.legend()
         plt.show(block=False)
     critTempNaive = T[np.argmax(C)]
-        
+
     if write_to_file:
         genRepr = grid.getGenRepr()
         i = 0
@@ -306,30 +310,28 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_t=100,
         while os.path.exists(filename):
             i += 1
             filename = filenameFormat.format(i)
-        
+
         file = open(filename, "w")
-        trial_seed_val = trial_seed if trial_seed is not None else "null"
-        trial_index_val = trial_index if trial_index is not None else "null"
-        trial_length_val = trial_length if trial_length is not None else "null"
-        
-        file.write("# PARAM_DICT {}\n".format(json.dumps({"genRepr": genRepr, "settle_t": settle_t,
-                   "E_samples": E_samples, "sample_step": sample_step,
-                   "trial_seed": trial_seed_val,
-                   "trial_index": trial_index_val,
-                   "trial_length": trial_length_val})))
+        paramDict = {"genRepr": genRepr, "settle_factor": settle_factor,
+                   "E_samples": E_samples, "sample_step_factor": sample_step_factor,
+                   "trial_seed": trial_seed,
+                   "trial_index": trial_index,
+                   "trial_length": trial_length,
+                   "crit_temp_naive": critTempNaive}
+#        if trial_seed is not None:
+#            paramDict["trial_seed"] = trial_seed
+#        if trial_index is not None:
+#            paramDict["trial_index"] = trial_index
+#        if trial_length is not None:
+#            paramDict["trial_length"] = trial_length
+
+        file.write("# PARAM_DICT {}\n".format(json.dumps(paramDict)))
         file.write(f"# CRIT_TEMP_NAIVE {critTempNaive:.4e}\n")
-        file.write(f"# PARAM GENREPR {genRepr}\n")
-        file.write(f"# PARAM SETTLE_T {settle_t}\n")
-        file.write(f"# PARAM E_SAMPLES {E_samples}\n")
-        file.write(f"# PARAM SAMPLE_STEP {sample_step}\n")
-        file.write(f"# PARAM TRIAL_SEED {trial_seed_val}\n")
-        file.write(f"# PARAM TRIAL_INDEX {trial_index_val}\n")
-        file.write(f"# PARAM TRIAL_LENGTH {trial_length_val}\n")
-                   
+
         file.write(f"# FORMAT T, E, C, m\n")
         dat = np.transpose(np.array([T, E, C, m]))
         for row in dat:
-            file.write(",\t".join(["{:.4f}".format(a) if 0.01 <= abs(a) <= 1000 
+            file.write(",\t".join(["{:.4f}".format(a) if 0.01 <= abs(a) <= 1000
                                    else "{:.4e}".format(a) for a in row]) + "\n")
         file.close()
 
@@ -341,17 +343,17 @@ def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_t=
         gen = random.RandomState()
     else:
         gen = random.RandomState(trial_seed)
-        
+
     seeds = gen.randint(0, 1e8, trial_length)
 
-    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]), T=T, settle_t=settle_t, 
-                                E_samples=E_samples, sample_step=sample_step, 
+    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]), T=T, settle_t=settle_t,
+                                E_samples=E_samples, sample_step=sample_step,
                                 show=False, trial_seed=trial_seed, trial_index=i,
                                 trial_length=trial_length)
             for i in range(trial_length)]
 
     return ufloat(np.mean(T_crits), np.std(T_crits) / np.sqrt(len(T_crits)))
-    
+
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
     grid = SquareGrid(gridsize, redT, DEFAULT_SEEDS[0])
