@@ -1,4 +1,5 @@
 from ising import SquareGrid, DEFAULT_SEEDS, TilingConstraint, log, TileGrid, ExternalGrid
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.animation import PillowWriter
@@ -250,6 +251,59 @@ def CreateSeries():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
+
+def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=True):
+    if not showInSubplots:
+        for yAxVal in yAx:
+            LoadPhaseTransitionPlot(filenames, xAx, [yAxVal])
+        return
+    
+    if type(filenames) == str:
+        filenames = [filenames]
+        
+    f, ax = plt.subplots(len(yAx), sharex=True)
+    
+    if len(yAx) == 1:
+        ax = [ax]
+        
+    matplotlib.rcParams.update({'font.size': 10})
+    
+    for filename in filenames:
+        path = filename
+        if not os.path.isfile(path) and not path.endswith(".txt"):
+            path = path + ".txt"
+        if not os.path.isfile(path):
+            path = "PhaseTransitionData/" + path
+        params = {}
+        colNames = []
+            
+        with open(path, "r") as paramRead:
+            nextLine = next(paramRead)
+            while len(nextLine) > 0 and nextLine[0] == '#':
+                if nextLine.startswith("# FORMAT "):
+                    colNames = [a.strip() for a in nextLine[len("# FORMAT "):].split(",")]
+                if nextLine.startswith("# PARAM_DICT "):
+                    dictLine = nextLine[len("# PARAM_DICT "):]
+                    params.update(json.loads(dictLine))
+                nextLine = next(paramRead)
+        print("Params are {}".format(params))
+        print("Colnames are {}".format(" | ".join(colNames)))
+        
+        data = np.genfromtxt(path, names=colNames, delimiter=",\t")
+        for j in range(0, len(yAx)):
+            ax[j].plot(data[xAx], data[yAx[j]], label=filename)
+                
+    for j in range(0, len(yAx)):
+        ax[j].legend()
+        ax[j].set_ylabel(yAx[j])
+        ax[j].set_xlabel(xAx)
+    plt.show(block=False)
+
+
+def DoBalanceTest(balance = 1.0):
+    TrialCriticalTemp(lambda seed: Create3636(20, seed), sample_step_factor=2.0 * balance,
+                      E_samples=50/balance)
+
 def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                     E_samples=50, sample_step_factor=2.0, show=False,
                     write_to_file=True, trial_seed=None, trial_index=None,
@@ -268,7 +322,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
         E2 = []
 
-        for _ in range(E_samples):
+        for _ in range(int(E_samples)):
             remaining = sample_step_factor * grid.getSize()
             while remaining > 0:
                 remaining -= grid.wolff()
@@ -292,7 +346,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
     ##    plt.show(block=False)
 
         plt.figure()
-        plt.plot(T, C, label="CFromVar")
+        plt.plot(T, C, label="C")
         plt.legend()
         plt.show(block=False)
 
@@ -317,13 +371,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                    "trial_seed": trial_seed,
                    "trial_index": trial_index,
                    "trial_length": trial_length,
-                   "crit_temp_naive": critTempNaive}
-#        if trial_seed is not None:
-#            paramDict["trial_seed"] = trial_seed
-#        if trial_index is not None:
-#            paramDict["trial_index"] = trial_index
-#        if trial_length is not None:
-#            paramDict["trial_length"] = trial_length
+                   "crit_temp_naive": critTempNaive, "gridSize": grid.getSize()}
 
         file.write("# PARAM_DICT {}\n".format(json.dumps(paramDict)))
         file.write(f"# CRIT_TEMP_NAIVE {critTempNaive:.4e}\n")
@@ -337,8 +385,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
     return critTempNaive
 
-def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_t=100,
-                        E_samples=100, sample_step=100, trial_seed=None):
+def TrialCriticalTemp(new_grid, trial_length=20, trial_seed=None, **kwargs):
     if trial_seed is None:
         gen = random.RandomState()
     else:
@@ -346,10 +393,9 @@ def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_t=
 
     seeds = gen.randint(0, 1e8, trial_length)
 
-    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]), T=T, settle_t=settle_t,
-                                E_samples=E_samples, sample_step=sample_step,
-                                show=False, trial_seed=trial_seed, trial_index=i,
-                                trial_length=trial_length)
+    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]),
+                                trial_seed=trial_seed, trial_index=i,
+                                trial_length=trial_length, **kwargs)
             for i in range(trial_length)]
 
     return ufloat(np.mean(T_crits), np.std(T_crits) / np.sqrt(len(T_crits)))
@@ -462,5 +508,16 @@ def HalfPlateExample():
                                 repeat_delay=0)
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
+
+if __name__ == "__main__" and False:
+    files = [a for a in os.listdir("PhaseTransitionData/")
+            if a.startswith("Create3636_20")]
+    LoadPhaseTransitionPlot(files)
+    files = [a for a in os.listdir("PhaseTransitionData/")
+            if a.startswith("Create3636_10")]
+    LoadPhaseTransitionPlot(files)
+    
+    #LoadPhaseTransitionPlot(files)
+    #for f in os.path.walker()
 
 
