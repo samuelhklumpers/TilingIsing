@@ -39,13 +39,19 @@ class IGrid:
 
     def wolff(self):
         ...
+        
+    def getGenRepr(self):
+        ...
 
 class SquareGrid(IGrid):
-    def __init__(self, n, redT, seed=DEFAULT_SEEDS[0]):
-        log.info(f"Generate grid {n}x{n} with seed {seed}")
+    def __init__(self, n, redT, seed=None):
+        if seed is None:
+            seed = random.randint(0, 1e8)
+        self.seed = seed
+        self.rand = random.RandomState(seed=self.seed)
+        log.info(f"Generated square {n}x{n} grid with seed {self.seed}")
 
-        np.random.seed(seed)
-        self.grid = 2 * random.randint(0, 2, size=(n, n), dtype=np.int8) - 1
+        self.grid = 2 * self.rand.randint(0, 2, size=(n, n), dtype=np.int8) - 1
         self.redT = np.float64(redT)
 
     def getEnergy(self):
@@ -72,8 +78,8 @@ class SquareGrid(IGrid):
         return np.average(self.grid)
 
     def metro(self):
-        i = random.randint(0, self.grid.shape[0])
-        j = random.randint(0, self.grid.shape[1])
+        i = self.rand.randint(0, self.grid.shape[0])
+        j = self.rand.randint(0, self.grid.shape[1])
 
         dE = -2 * self.getEnergyAt(i, j)
 
@@ -81,7 +87,7 @@ class SquareGrid(IGrid):
         if dE > 0.0:
             chance = np.exp(-dE / self.redT) \
                         if self.redT != 0 else 0.0
-            accept = random.random() < chance
+            accept = self.rand.random() < chance
 
         if accept:
             self.grid[i, j] *= -1
@@ -90,13 +96,13 @@ class SquareGrid(IGrid):
         prev_err = np.seterr(all='ignore')
         neighs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
-        i = random.randint(0, self.grid.shape[0])
-        j = random.randint(0, self.grid.shape[1])
+        i = self.rand.randint(0, self.grid.shape[0])
+        j = self.rand.randint(0, self.grid.shape[1])
 
         dE = -2 * self.getEnergyAt(i, j)
         p_start = np.exp(-dE / self.redT)
 
-        if random.rand() > p_start:
+        if self.rand.rand() > p_start:
             return
 
         val0 = self.grid[i, j]
@@ -121,7 +127,7 @@ class SquareGrid(IGrid):
                 if val0 != self.grid[l2]:
                     continue
 
-                if random.rand() < p:
+                if self.rand.rand() < p:
                     visited[l2] = -1
                     q.put(l2)
 
@@ -136,9 +142,12 @@ class SquareGrid(IGrid):
 
     def plot(self, axis, **kwargs):
         axis.imshow(self.grid, clim=(0, 1), **kwargs)
-
+        
+    def getGenRepr(self):
+        return f"SquareGrid_{self.grid.shape[0]}x{self.grid.shape[1]}_{self.seed}"
+    
 class ExternalGrid:
-    def __init__(self, n, t_func, t_callback=None, dE_func=None, seed=DEFAULT_SEEDS[0]):
+    def __init__(self, n, t_func, t_callback=None, dE_func=None, seed=None):
         """
         The Grid object represents a square of n x n arrangement of particles with
         spin +1/-1.
@@ -152,11 +161,14 @@ class ExternalGrid:
 
             Func dE_func:   A function that takes the coordinates of a cell and returns a modifier for its dE during flips.
         """
+        if seed is None:
+            seed = random.randint(0, 1e8)
+        self.seed = seed
+        self.rand = random.RandomState(seed=self.seed)
+        
+        self.grid = 2 * self.rand.randint(0, 2, size=(n, n), dtype=np.int8) - 1
 
-        log.info(f"Generate grid {n}x{n} with seed {seed}")
-
-        np.random.seed(seed)
-        self.grid = 2 * random.randint(0, 2, size=(n, n), dtype=np.int8) - 1
+        log.info(f"Generated external grid {n}x{n} with seed {seed}")
 
         if np.isscalar(t_func):
             self.T_red = t_func
@@ -205,8 +217,8 @@ class ExternalGrid:
         return np.average(self.grid)
 
     def metro(self):
-        i = random.randint(0, self.grid.shape[0])
-        j = random.randint(0, self.grid.shape[1])
+        i = self.rand.randint(0, self.grid.shape[0])
+        j = self.rand.randint(0, self.grid.shape[1])
 
         dE = -2 * self.getEnergyAt(i, j)
         dE += self.dE_func(i, j)
@@ -217,7 +229,7 @@ class ExternalGrid:
         if dE > 0.0:
             chance = np.exp(-dE / T_red) \
                         if T_red != 0 else 0.0
-            accept = random.random() < chance
+            accept = self.rand.random() < chance
 
         if accept:
             self.t_callback(i, j, dE)
@@ -233,6 +245,9 @@ class ExternalGrid:
 
     def plot(self, axis, **kwargs):
         axis.imshow(self.grid, clim=(0, 1), **kwargs)
+
+    def getGenRepr(self):
+        return f"ExternalGrid_{self.grid.shape[0]}x{self.grid.shape[1]}_{self.seed}"
 
 # CW
 class TilingConstraint:
@@ -250,9 +265,9 @@ class TilingConstraint:
     def set_neighbours(self, constraints, repetitions=1):
         self.neighs = constraints, repetitions
 
-    def generate(self, depth):
+    def generate(self, depth, randGen):
         q = queue.Queue()
-        t0 = Tile(0, self.n)
+        t0 = Tile(0, self.n, randGen=randGen)
         t0.depth = depth
         t0.constraint = self
         q.put(t0)
@@ -264,7 +279,7 @@ class TilingConstraint:
 
         return t0
 
-    def _generate(self, tile):
+    def _generate(self, tile, randGen):
         for k0, neighbour in enumerate(tile.neighs):
             if neighbour is None:
                 continue
@@ -316,7 +331,7 @@ class TilingConstraint:
             j = (j0 + dx) % len(self.neighs[0])
 
             if tile.neighs[i] is None:
-                neigh = Tile(1, self.neighs[0][j].n)
+                neigh = Tile(1, self.neighs[0][j].n, randGen=randGen)
                 neigh.constraint = self.neighs[0][j]
                 neigh.depth = tile.depth - 1
 
@@ -328,7 +343,13 @@ class TilingConstraint:
         return new_neighs
 
 class TileGrid(IGrid):
-    def __init__(self, constraint, depth, redT):
+    def __init__(self, constraint, depth, redT, seed=None, createID="TileGrid"):
+        if seed is None:
+            seed = random.randint(0, 1e8)
+        self.seed = seed
+        self.rand = random.RandomState(seed=self.seed)
+        self.createID = createID
+        
         self.constraint = constraint
         self.depth = depth
         self.redT = redT
@@ -356,20 +377,21 @@ class TileGrid(IGrid):
         if self.redT <= 0:
             return
 
-        start = random.choice(self.lis)
+        start = int(self.rand.rand() * len(self.lis))
+        start = self.lis[start]
 
         self.unvisit()
         dE = -2 * start.getEnergyAt()
         p0 = np.exp(-dE / self.redT)
 
-        if random.rand() > p0:
+        if self.rand.rand() > p0:
             return
 
         beta = 1 / self.redT
         p = 1 - np.exp(-2 * beta)
         v0 = start.spin
 
-        self.corecurse((start, ()), lambda rep, ret: start.wolff(rep, p, v0))
+        self.corecurse((start, ()), lambda rep, ret: start.wolff(rep, p, v0, randGen=self.rand))
 
     def unvisit(self):
         for t in self.lis:
@@ -422,10 +444,13 @@ class TileGrid(IGrid):
             fig.show()
 
         return fig, ax
+    
+    def getGenRepr(self):
+        return self.createID + f"_{self.depth}_{self.seed}"
 
 class Tile:
-    def __init__(self, spin, n_neighs):
-        self.spin = random.choice([-1.0, 1.0])#spin
+    def __init__(self, spin, n_neighs, randGen):
+        self.spin = randGen.choice([-1.0, 1.0])#spin
         self.neighs = [None] * n_neighs
         self.visited = False
         self.r = None
@@ -477,7 +502,7 @@ class Tile:
         return dn
 
     @staticmethod
-    def wolff(self, p, v0):
+    def wolff(self, p, v0, randGen):
         self.spin = -v0
 
         ret = []
@@ -487,7 +512,7 @@ class Tile:
             if neigh is None:
                 continue
 
-            if neigh.spin == v0 and random.rand() < p:
+            if neigh.spin == v0 and randGen.rand() < p:
                 new += [(neigh, ())]
 
         return new, ret
