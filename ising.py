@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import logging
 import sys
 import queue
-
+from collections import deque
 DEFAULT_SEEDS = [2019090814]
 
 #logging.reset()
@@ -413,23 +413,23 @@ class TileGrid(IGrid):
         #import pdb
         #pdb.set_trace()
 
-        q = queue.Queue()
+        q = deque()
 
-        q.put(rep)
+        q.append(rep)
         rep[0].visited = True
         ret = [] if default is None else default
 
         visited = set()
 
-        while not q.empty():
-            tile, args = q.get()
+        while q:
+            tile, args = q.popleft()
 
             new, ret = f(tile, ret, *args)
 
             for n in new:
                 if n[0] is not None and not n[0].visited:
                     n[0].visited = True
-                    q.put(n)
+                    q.append(n)
                     visited.add(n[0])
 
         for tile in visited:
