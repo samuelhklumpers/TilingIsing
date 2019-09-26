@@ -386,7 +386,7 @@ class TileGrid(IGrid):
 
     def wolff(self):
         if self.redT <= 0:
-            return
+            return 0
 
         start = int(self.rand.rand() * len(self.lis))
         start = self.lis[start]

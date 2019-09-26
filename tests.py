@@ -260,7 +260,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
     for temp in T:
         grid.redT = temp
-        log.info(f"Calculating at temperature {temp:.3f}")
+        #log.info(f"Calculating at temperature {temp:.3f}")
 
         remaining = settle_factor * grid.getSize()
         while remaining > 0:
@@ -335,10 +335,10 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                                    else "{:.4e}".format(a) for a in row]) + "\n")
         file.close()
 
-    return critTempNaive
+    return critTempNaive, C
 
-def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_t=100,
-                        E_samples=100, sample_step=100, trial_seed=None):
+def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_factor=15,
+                        E_samples=100, sample_step_factor=2.0, trial_seed=None):
     if trial_seed is None:
         gen = random.RandomState()
     else:
@@ -346,10 +346,10 @@ def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_t=
 
     seeds = gen.randint(0, 1e8, trial_length)
 
-    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]), T=T, settle_t=settle_t,
-                                E_samples=E_samples, sample_step=sample_step,
+    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]), T=T, settle_factor=settle_factor,
+                                E_samples=E_samples, sample_step_factor=sample_step_factor,
                                 show=False, trial_seed=trial_seed, trial_index=i,
-                                trial_length=trial_length)
+                                trial_length=trial_length, write_to_file=False)[0]
             for i in range(trial_length)]
 
     return ufloat(np.mean(T_crits), np.std(T_crits) / np.sqrt(len(T_crits)))
@@ -463,4 +463,170 @@ def HalfPlateExample():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
+def FindTPerc(tg):
+    siz = len(tg.lis)
+    
+    for T in np.linspace(10.0, 0.1, num=100):
+        n = 0
+        for attempt in range(10):
+            for t in tg.lis:
+                t.spin = -1
 
+            tg.redT = T
+            
+            while tg.wolff() == 0:
+                ...
+
+            cnt = sum(1 for t in tg.lis if t.spin > 0)
+
+            if cnt / siz > 0.95:
+                n += 1
+
+        if n >= 8:
+            return T
+
+    return 0.1
+
+def AutoSearch(new_grid, std_ratio=5, irreg_low=0.0016, irreg_high=0.005, T_low=1.5, T_high=15.0, avg_n=1):
+    T_res = 1.0
+    trial_length = 20
+    E_samples = 100
+    sample_step_factor = 2.0
+
+    T_perc = FindTPerc(new_grid())
+    print(T_perc)
+    T_low = max(T_low, T_perc)
+
+    size = len(new_grid().lis)
+    
+    def Irregularity(samples): # if irregular and not simple within submaxrange then increase sample_step
+        tval = np.sum(np.diff(samples, n=2) ** 2)
+        return tval
+
+    def Simplicity(samples): # if simple then not irregular
+        d = np.diff(samples)
+
+        return np.sum(d[1:] * d[:-1] < 0)
+
+    def SubMaxRange(samples, factor=0.7, scale=1.1): # if not narrowing down using sigma, narrow down using submaxrange
+        m = samples.max()
+        argmax = samples.argmax()
+        w = np.argwhere(samples > m * factor)
+
+        low = w.min()
+        high = w.max()
+        width = high - low
+
+        if width < 3:
+            width = 3
+
+        low = argmax - scale * width
+        high = argmax + scale * width
+
+        low = max(0, int(low))
+        high = min(len(samples) - 1, int(high))
+
+        return low, high
+
+    def Resolution(res, std, ratio=std_ratio): # if std < res decrease step, otherwise aim for std / res ~ ratio
+        if std < res:
+            return res / 5
+
+        return std / 5
+
+    run = True
+
+    prev_std = [100, 100, 100, 100, 100]
+
+    plt.ion()
+
+    while run:
+        correcting = True
+        
+        while correcting:
+            print("correcting")
+
+            T = np.arange(T_low, T_high + 1, T_res)            
+            correcting = False
+
+            C = []
+
+            for i in range(avg_n):
+                _, C_i = FindCriticalTemp(new_grid(), T, 15, E_samples, sample_step_factor, write_to_file=False)
+
+                C += [np.array(C_i)]
+
+            C = np.mean(C, axis=0)
+
+            low, high = SubMaxRange(C)
+
+            simple = Simplicity(C[low:high])
+
+            print(simple)
+            print(simple / (high - low))
+
+            if simple / (high - low) > 0.4:
+                correcting = True
+                sample_step_factor *= 1.5
+                E_samples *= 1.5
+                E_samples = int(E_samples)
+                avg_n += 1
+                print("step up", sample_step_factor, E_samples, avg_n)
+
+            if simple / (high - low) < 0.3 and sample_step_factor * size > 10:
+                correcting = True
+                sample_step_factor /= 2
+
+                if E_samples > 100:
+                    E_samples /= 2
+                    E_samples = int(E_samples)
+
+                if avg_n > 1:
+                    avg_n -= 1
+
+                print(low)
+                print(high)
+                print(T[low])
+                print(T[high])
+
+                T_low = T[low]
+                T_low = max(T_perc, T_low)
+                T_high = T[high]
+                
+                print("step down", sample_step_factor, E_samples, avg_n)
+
+            if not correcting:
+                T_low = T[low]
+                T_low = max(T_perc, T_low)
+                T_high = T[high]
+
+            plt.figure()
+            plt.plot(T, C)
+            plt.show(block=False)
+            plt.pause(0.001)
+
+        print("testing")
+        
+        T = np.arange(T_low, T_high + 1, T_res)  
+        T_crit = TrialCriticalTemp(new_grid, trial_length, T, 15, E_samples, sample_step_factor)
+
+        if T_crit.std_dev > T_res * 5:
+            if T_crit.std_dev * 1.1 > np.mean(prev_std):
+                print("done")
+                return T_crit
+
+            prev_std += [T_crit.std_dev]
+
+            del prev_std[0]
+
+            T_low = T_crit.nominal_value - 2 * T_crit.std_dev
+            T_low = max(T_perc, T_low)
+            T_high = T_crit.nominal_value + 2 * T_crit.std_dev
+
+        T_res = Resolution(T_res, T_crit.std_dev)
+
+        print(T_crit)
+
+from functools import partial
+new = partial(Create666, depth=4)
+AutoSearch(new)
