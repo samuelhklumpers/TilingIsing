@@ -84,6 +84,48 @@ def Create4444(depth, seed=None):
 
     return tile
 
+def Create46_12(depth, seed=None):
+    c4 = TilingConstraint(4)
+    c6 = TilingConstraint(6)
+    c12 = TilingConstraint(12)
+
+    c4.set_neighbours([c6, c12], 2)
+    c6.set_neighbours([c4, c12], 3)
+    c12.set_neighbours([c4, c6], 6)
+
+    c4.set_constraint(c6, 1, -1, -1)
+    c4.set_constraint(c6, -1, 1, 1)
+    c4.set_constraint(c12, 1, -1, -1)
+    c4.set_constraint(c12, -1, 1, 1)
+
+    c6.set_constraint(c4, 1, -1, -1)
+    c6.set_constraint(c4, -1, 1, 1)
+    c6.set_constraint(c12, 1, -1, -1)
+    c6.set_constraint(c12, -1, 1, 1)
+
+    c12.set_constraint(c4, 1, -1, -1)
+    c12.set_constraint(c4, -1, 1, 1)
+    c12.set_constraint(c6, 1, -1, -1)
+    c12.set_constraint(c6, -1, 1, 1)
+
+    return TileGrid(c12, depth, 1.0, seed=seed, createID="Create46_12")
+
+def Create33434(depth, seed=None):
+    c3 = TilingConstraint(3) #broken
+    c4 = TilingConstraint(4)
+
+    c3.set_neighbours([c3, c4, c4], 1)
+    c4.set_neighbours([c3], 4)
+
+    c3.set_constraint(c4, -1, 1, 1, 1, 1)
+    c3.set_constraint(c4, 1, -1, -1, -1, -1)
+    c3.set_constraint(c3, 1, -1, -1, -1, -1)
+    c3.set_constraint(c3, -1, 1, 1, 1, 1)
+    c4.set_constraint(c3, -1, 1, 1, 1, 1)
+    c4.set_constraint(c3, 1, -1, -1, -1, -1)
+
+    return TileGrid(c4, depth, 1.0, seed=seed, createID="Create33434")
+
 def Exp2_6_1():
     gr = SquareGrid(20, 5.0)
     numberOfAttempts = 0

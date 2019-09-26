@@ -308,7 +308,11 @@ class TilingConstraint:
                     if curr is None:
                         break
 
-                    i0 = curr.neighs.index(prev)
+                    try:
+                        i0 = curr.neighs.index(prev)
+                    except:
+                        continue
+                    
                     i = (i0 + winding) % len(curr.neighs)
 
                     prev, curr = curr, curr.neighs[i]
@@ -316,7 +320,10 @@ class TilingConstraint:
                 if curr is None:
                     continue
                 else:
-                    i0 = curr.neighs.index(prev)
+                    try:
+                        i0 = curr.neighs.index(prev)
+                    except:
+                        continue
                     i = (i0 + target_wind) % len(curr.neighs)
 
                     tile.neighs[k] = curr
