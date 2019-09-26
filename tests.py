@@ -9,7 +9,6 @@ import os
 from numpy import random
 from uncertainties import ufloat
 import json
-import datetime, time
 
 def Create666(depth, seed=None):
     hex_constr = TilingConstraint(6)
@@ -311,147 +310,44 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
         
     matplotlib.rcParams.update({'font.size': 10})
     
-    balances = {}
-    
-    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    colorIndex = 0
-    
-    for curveDataRaw in filenames:        
-        curveData = curveDataRaw
-        curveDataLabel = ""
-        if type(curveData) == str:
-            curveData = [curveData]
-        if len(curveData) > 1:
-            if curveData[0].startswith("@"):
-                curveDataLabel = curveData[0][1:]
-                curveData = curveData[1:]
-            else:
-                curveDataLabel = "a.o. {}".format(curveData[0])
-        else:
-            curveDataLabel = curveData[0]
+    for filename in filenames:
+        path = filename
+        if not os.path.isfile(path) and not path.endswith(".txt"):
+            path = path + ".txt"
+        if not os.path.isfile(path):
+            path = "PhaseTransitionData/" + path
+        params = {}
+        colNames = []
             
-        paramsTot = []
-        dataTot = []
-        dataAvg = None
-        dataStd = None
-        dataAvailableCount = None
-        #dataExtrDict = {}
+        with open(path, "r") as paramRead:
+            nextLine = next(paramRead)
+            while len(nextLine) > 0 and nextLine[0] == '#':
+                if nextLine.startswith("# FORMAT "):
+                    colNames = [a.strip() for a in nextLine[len("# FORMAT "):].split(",")]
+                if nextLine.startswith("# PARAM_DICT "):
+                    dictLine = nextLine[len("# PARAM_DICT "):]
+                    params.update(json.loads(dictLine))
+                nextLine = next(paramRead)
+        print("Params are {}".format(params))
+        print("Colnames are {}".format(" | ".join(colNames)))
         
-        dataDict = {}
-            
-        for filename in curveData:
-            path = filename
-            if not os.path.isfile(path) and not path.endswith(".txt"):
-                path = path + ".txt"
-            if not os.path.isfile(path):
-                path = "PhaseTransitionData/" + path
-            params = {}
-            colNames = []
-                
-            with open(path, "r") as paramRead:
-                try:
-                    nextLine = next(paramRead)
-                except StopIteration as err:
-                    raise err                    
-                while len(nextLine) > 0 and nextLine[0] == '#':
-                    if nextLine.startswith("# FORMAT "):
-                        colNames = [a.strip() for a in nextLine[len("# FORMAT "):].split(",")]
-                    if nextLine.startswith("# PARAM_DICT "):
-                        dictLine = nextLine[len("# PARAM_DICT "):]
-                        params.update(json.loads(dictLine))
-                    nextLine = next(paramRead)
-            #print("Params are {}".format(params))
-            #print("Colnames are {}".format(" | ".join(colNames)))
-            
-            
-            try:
-                data = np.genfromtxt(path, names=colNames, delimiter=",\t")
-            except ValueError as err:
-                raise err
-            paramsTot += [params]
-            dataTot += [data]
-            #return data
-            
-            for i in range(data.shape[0]):
-                try:
-                    existingRow = dataDict[data[xAx][i]]
-                except KeyError:
-                    existingRow = [[] for _ in range(len(yAx))] 
-                for j in range(len(yAx)):
-                    existingRow[j] += [data[yAx[j]][i]]
-                #existingRow[-1] += 1
-                dataDict[data[xAx][i]] = existingRow
-                            
-        if len(curveData) < 2:
-            dataAvg = dataTot[0]
-            dataAvailableCount = np.ones(len(dataTot[0]))
-            
-        else:
-            dataAvg = np.zeros(len(dataDict), dtype=[(val, np.float32) for val in [*yAx, xAx]])
-            dataStd = np.zeros(len(dataDict), dtype=[(val, np.float32) for val in yAx])
-            dataAvailableCount = np.zeros(len(dataDict))
-            
-            index = 0
-            for val in dataDict.items():
-                dataAvg[xAx][index] = val[0]
-                dataAvailableCount[index] = len(val[1][0])
-                for i in range(len(yAx)):
-                    dataAvg[yAx[i]][index] = np.average(val[1][i])
-                    dataStd[yAx[i]][index] = np.std(val[1][i])
-                index += 1
-            if index != len(dataDict):
-                raise Exception("Unexpected situation")
-                
-        #balance = paramsTot[0]["sample_step_factor"]/2.0
-        #if balance in balances:
-        #    balances[balance] += 1
-        #else:
-        #    balances[balance] = 1
-        #if balance != 4.0:#balances[balance] > 2:
-        #    continue
-        
+        data = np.genfromtxt(path, names=colNames, delimiter=",\t")
         for j in range(0, len(yAx)):
-            #colorLine = "black"
-            #colorStd = "gray"
-            ax[j].plot(dataAvg[xAx], dataAvg[yAx[j]], label=curveDataLabel,#label="Balance {:.3f}".format(balance),
-              color=colors[colorIndex])
-              #color=colorLine)#filename)
-            if dataStd is not None:
-                ax[j].fill_between(dataAvg[xAx], dataAvg[yAx[j]] - dataStd[yAx[j]], 
-                  dataAvg[yAx[j]] + dataStd[yAx[j]],
-                  color=colors[colorIndex], alpha=0.3)#, color=colorStd)
-        colorIndex = (colorIndex + 1) % len(colors)
-                            
+            ax[j].plot(data[xAx], data[yAx[j]], label=filename)
+                
     for j in range(0, len(yAx)):
         ax[j].legend()
         ax[j].set_ylabel(yAx[j])
         ax[j].set_xlabel(xAx)
-        ax[j].grid()
-        xlim = ax[j].get_xlim()
-        values = np.arange(xlim[0], xlim[1], 0.5)
-        ax[j].set_xticks(values)
-        
     plt.show(block=False)
 
-def ShowPhaseTransitionNewerThan(timestampFrom, **kwargs):
-    files = [a for a in os.listdir("PhaseTransitionData/")
-            if datetime.datetime.utcfromtimestamp(os.path.getmtime("PhaseTransitionData/{}".format(a))) >= timestampFrom]
-    groupings = {}
-    for fileName in files:
-        groupingCat = fileName[:fileName.find('_', fileName.find('_') + 1)]
-        if groupingCat in groupings:
-            groupings[groupingCat] += [fileName]
-        else:
-            groupings[groupingCat] = [fileName]
-    
-    return LoadPhaseTransitionPlot([["@{}".format(a[0]), *a[1]] for a in groupings.items()], **kwargs)
 
 def DoBalanceTest(balance = 1.0):
     TrialCriticalTemp(lambda seed: Create3636(20, seed), sample_step_factor=2.0 * balance,
                       E_samples=50/balance)
 
 def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
-                    E_samples=25, sample_step_factor=1.5, show=False,
+                    E_samples=50, sample_step_factor=2.0, show=False,
                     write_to_file=True, trial_seed=None, trial_index=None,
                     trial_length=None):
     E = []
@@ -460,7 +356,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
     for temp in T:
         grid.redT = temp
-        log.info(f"Calculating at temperature {temp:.3f}")
+        #log.info(f"Calculating at temperature {temp:.3f}")
 
         remaining = settle_factor * grid.getSize()
         while remaining > 0:
@@ -533,8 +429,9 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
 def TrialCriticalTemp(new_grid, trial_length=20, trial_seed=None, **kwargs):
     if trial_seed is None:
-        trial_seed = random.randint(10e8)
-    gen = random.RandomState(trial_seed)
+        gen = random.RandomState()
+    else:
+        gen = random.RandomState(trial_seed)
 
     seeds = gen.randint(0, 1e8, trial_length)
 
@@ -654,19 +551,34 @@ def HalfPlateExample():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
-if __name__ == "__main__" and False:
-    """
-    files = [a for a in os.listdir("PhaseTransitionData/")
-            if a.startswith("Create3636_20")]
-    LoadPhaseTransitionPlot(files)
-    files = [a for a in os.listdir("PhaseTransitionData/")
-            if a.startswith("Create3636_10")]
-    LoadPhaseTransitionPlot(files)
-    """
-    ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,25))
-    
-    
-    #LoadPhaseTransitionPlot(files)
-    #for f in os.path.walker()
+if __name__ == "__main__":
+    if True:
+        files = [a for a in os.listdir("PhaseTransitionData/")
+                if a.startswith("Create333333_10")]
+        LoadPhaseTransitionPlot(files)
+    else:
+        data = []
 
+        from functools import partial
 
+        generators = [Create333333, Create3636, Create4444, Create46_12, Create666]
+        generators = [partial(g, depth=10) for g in generators]
+
+        for g in generators:
+            T_perc = g().findPercolationT()
+
+            T = np.arange(T_perc, 12.0, 0.1)
+            
+            estimate = FindCriticalTemp(g(), T, write_to_file=False)
+
+            T_low = max(T_perc, estimate - 0.4)
+            T_high = estimate + 0.4
+
+            print("Searching", g, "between", T_low, T_high)
+
+            T = np.arange(T_low, T_high, 0.005)
+
+            T_crit = TrialCriticalTemp(g, T=T, trial_length=100, settle_factor=15.0, E_samples=100, sample_step_factor=2.0)
+
+            print("Found", T_crit)
+            data += [(g, T_crit)]

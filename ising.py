@@ -411,6 +411,33 @@ class TileGrid(IGrid):
 
         return self.corecurse((start, ()), lambda rep, ret: start.wolff(rep, ret, p, v0, randGen=self.rand), default=0)
 
+    def findPercolationT(self):
+        for T in np.arange(12.5, -0.5, -1.0):
+            n = 0
+            self.redT = T
+            for i in range(50):
+                for t in self.lis:
+                    t.spin = -1
+                
+                start = int(self.rand.rand() * len(self.lis))
+                start = self.lis[start]
+
+                self.unvisit()
+
+                beta = 1 / self.redT
+                p = 1 - np.exp(-2 * beta)
+                v0 = start.spin
+
+                flipped = self.corecurse((start, ()), lambda rep, ret: start.wolff(rep, ret, p, v0, randGen=self.rand), default=0)
+
+                if flipped > len(self.lis) * 0.9:
+                    n += 1
+
+            if n > 30:
+                return T
+
+        return 11.5
+
     def unvisit(self):
         for t in self.lis:
             t.visited = False
