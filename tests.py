@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.animation import PillowWriter
 import numpy as np
-import pickle
 import os
 from numpy import random
 from uncertainties import ufloat
@@ -14,6 +13,7 @@ import math
 from dateutil import tz
 import errno
 
+"""A set of methods for creating some tilings of the plane"""
 def Create666(depth, seed=None):
     hex_constr = TilingConstraint(6)
     hex_constr.set_neighbours([hex_constr], 6)
@@ -130,6 +130,7 @@ def Create33434(depth, seed=None):
 
     return TileGrid(c4, depth, 1.0, seed=seed, createID="Create33434")
 
+"""Exploratory experiments"""
 def Exp2_6_1():
     gr = SquareGrid(20, 5.0)
     numberOfAttempts = 0
@@ -226,6 +227,7 @@ def Exp2_6_5():
             gr.plot(axis=ax[j])
         plt.show()
 
+"""Animate a SquareGrid"""
 def ShowAnimate(gridsize=300, redT = 5.0,
                       frames=100, framechanges=300):
     seed = random.seed(DEFAULT_SEEDS[0])
@@ -250,24 +252,6 @@ def ShowAnimate(gridsize=300, redT = 5.0,
     ani = animation.FuncAnimation(fig, update)#, frames=range(1000))
     plt.show()
     return ani
-
-def CreateSeries():
-    grid = SquareGrid(30, 10, DEFAULT_SEEDS[0])
-
-    ims = []
-    fig = plt.figure()
-
-    for i in range(100):
-        for _ in range(1000):
-            grid.metro()
-
-        ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
-
-    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
-                                repeat_delay=0)
-
-    ani.save("series.gif", writer=PillowWriter(fps=10))
-    
     
 class DataFile:
     def __init__(self, filename, loadData=True, **kwargs):
@@ -504,7 +488,10 @@ def DoBalanceTest(balance = 1.0):
     TrialCriticalTemp(lambda seed: Create3636(20, seed), sample_step_factor=2.0 * balance,
                       E_samples=50/balance)   
     
-
+"""Find the T_crit of this Grid.
+Sampling at T, waiting initially for 15 * #tiles to be flipped.
+Sampling E_samples values at each T, waiting for 2 * #tiles to be flipped each sample.
+"""
 def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                     E_samples=50, sample_step_factor=2.0, show=False,
                     write_to_file=True, trial_seed=None, trial_index=None,
@@ -591,6 +578,8 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
     return critTempNaive
 
+"""Repeat the FindCriticalTemp call trial_length times, and
+return the average outcome and its external error."""
 def TrialCriticalTemp(new_grid, trial_length=20, trial_seed=None, **kwargs):
     if trial_seed is None:
         gen = random.RandomState()
@@ -606,6 +595,7 @@ def TrialCriticalTemp(new_grid, trial_length=20, trial_seed=None, **kwargs):
 
     return ufloat(np.mean(T_crits), np.std(T_crits) / np.sqrt(len(T_crits)))
 
+"""Animate a Grid and export to .gif"""
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
     grid = SquareGrid(gridsize, redT, DEFAULT_SEEDS[0])
@@ -624,6 +614,7 @@ def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
 
     ani.save(seriesname, writer=PillowWriter(fps=10))
 
+"""Animate a Grid in an interactive plot."""
 def AnimateTile(tileGrid, redT=8.0, frameskip=1):
     fig, ax = plt.subplots(figsize=(15, 15))
 
@@ -642,6 +633,7 @@ def AnimateTile(tileGrid, redT=8.0, frameskip=1):
     plt.show()
     return ani
 
+"""Demo for external influences on Grids."""
 def HalfPlateExample():
     n = 30
     grid = None
