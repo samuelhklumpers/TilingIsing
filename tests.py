@@ -1,4 +1,5 @@
 from ising import SquareGrid, DEFAULT_SEEDS, TilingConstraint, log, TileGrid, ExternalGrid
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.animation import PillowWriter
@@ -82,6 +83,48 @@ def Create4444(depth, seed=None):
     tile = TileGrid(sq_constr, depth, 1.0, seed=seed, createID="Create4444")
 
     return tile
+
+def Create46_12(depth, seed=None):
+    c4 = TilingConstraint(4)
+    c6 = TilingConstraint(6)
+    c12 = TilingConstraint(12)
+
+    c4.set_neighbours([c6, c12], 2)
+    c6.set_neighbours([c4, c12], 3)
+    c12.set_neighbours([c4, c6], 6)
+
+    c4.set_constraint(c6, 1, -1, -1)
+    c4.set_constraint(c6, -1, 1, 1)
+    c4.set_constraint(c12, 1, -1, -1)
+    c4.set_constraint(c12, -1, 1, 1)
+
+    c6.set_constraint(c4, 1, -1, -1)
+    c6.set_constraint(c4, -1, 1, 1)
+    c6.set_constraint(c12, 1, -1, -1)
+    c6.set_constraint(c12, -1, 1, 1)
+
+    c12.set_constraint(c4, 1, -1, -1)
+    c12.set_constraint(c4, -1, 1, 1)
+    c12.set_constraint(c6, 1, -1, -1)
+    c12.set_constraint(c6, -1, 1, 1)
+
+    return TileGrid(c12, depth, 1.0, seed=seed, createID="Create46_12")
+
+def Create33434(depth, seed=None):
+    c3 = TilingConstraint(3) #broken
+    c4 = TilingConstraint(4)
+
+    c3.set_neighbours([c3, c4, c4], 1)
+    c4.set_neighbours([c3], 4)
+
+    c3.set_constraint(c4, -1, 1, 1, 1, 1)
+    c3.set_constraint(c4, 1, -1, -1, -1, -1)
+    c3.set_constraint(c3, 1, -1, -1, -1, -1)
+    c3.set_constraint(c3, -1, 1, 1, 1, 1)
+    c4.set_constraint(c3, -1, 1, 1, 1, 1)
+    c4.set_constraint(c3, 1, -1, -1, -1, -1)
+
+    return TileGrid(c4, depth, 1.0, seed=seed, createID="Create33434")
 
 def Exp2_6_1():
     gr = SquareGrid(20, 5.0)
@@ -250,6 +293,59 @@ def CreateSeries():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
+
+def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=True):
+    if not showInSubplots:
+        for yAxVal in yAx:
+            LoadPhaseTransitionPlot(filenames, xAx, [yAxVal])
+        return
+    
+    if type(filenames) == str:
+        filenames = [filenames]
+        
+    f, ax = plt.subplots(len(yAx), sharex=True)
+    
+    if len(yAx) == 1:
+        ax = [ax]
+        
+    matplotlib.rcParams.update({'font.size': 10})
+    
+    for filename in filenames:
+        path = filename
+        if not os.path.isfile(path) and not path.endswith(".txt"):
+            path = path + ".txt"
+        if not os.path.isfile(path):
+            path = "PhaseTransitionData/" + path
+        params = {}
+        colNames = []
+            
+        with open(path, "r") as paramRead:
+            nextLine = next(paramRead)
+            while len(nextLine) > 0 and nextLine[0] == '#':
+                if nextLine.startswith("# FORMAT "):
+                    colNames = [a.strip() for a in nextLine[len("# FORMAT "):].split(",")]
+                if nextLine.startswith("# PARAM_DICT "):
+                    dictLine = nextLine[len("# PARAM_DICT "):]
+                    params.update(json.loads(dictLine))
+                nextLine = next(paramRead)
+        print("Params are {}".format(params))
+        print("Colnames are {}".format(" | ".join(colNames)))
+        
+        data = np.genfromtxt(path, names=colNames, delimiter=",\t")
+        for j in range(0, len(yAx)):
+            ax[j].plot(data[xAx], data[yAx[j]], label=filename)
+                
+    for j in range(0, len(yAx)):
+        ax[j].legend()
+        ax[j].set_ylabel(yAx[j])
+        ax[j].set_xlabel(xAx)
+    plt.show(block=False)
+
+
+def DoBalanceTest(balance = 1.0):
+    TrialCriticalTemp(lambda seed: Create3636(20, seed), sample_step_factor=2.0 * balance,
+                      E_samples=50/balance)
+
 def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                     E_samples=50, sample_step_factor=2.0, show=False,
                     write_to_file=True, trial_seed=None, trial_index=None,
@@ -260,7 +356,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
     for temp in T:
         grid.redT = temp
-        log.info(f"Calculating at temperature {temp:.3f}")
+        #log.info(f"Calculating at temperature {temp:.3f}")
 
         remaining = settle_factor * grid.getSize()
         while remaining > 0:
@@ -268,7 +364,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
         E2 = []
 
-        for _ in range(E_samples):
+        for _ in range(int(E_samples)):
             remaining = sample_step_factor * grid.getSize()
             while remaining > 0:
                 remaining -= grid.wolff()
@@ -292,7 +388,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
     ##    plt.show(block=False)
 
         plt.figure()
-        plt.plot(T, C, label="CFromVar")
+        plt.plot(T, C, label="C")
         plt.legend()
         plt.show(block=False)
 
@@ -317,13 +413,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                    "trial_seed": trial_seed,
                    "trial_index": trial_index,
                    "trial_length": trial_length,
-                   "crit_temp_naive": critTempNaive}
-#        if trial_seed is not None:
-#            paramDict["trial_seed"] = trial_seed
-#        if trial_index is not None:
-#            paramDict["trial_index"] = trial_index
-#        if trial_length is not None:
-#            paramDict["trial_length"] = trial_length
+                   "crit_temp_naive": critTempNaive, "gridSize": grid.getSize()}
 
         file.write("# PARAM_DICT {}\n".format(json.dumps(paramDict)))
         file.write(f"# CRIT_TEMP_NAIVE {critTempNaive:.4e}\n")
@@ -337,8 +427,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
     return critTempNaive
 
-def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_t=100,
-                        E_samples=100, sample_step=100, trial_seed=None):
+def TrialCriticalTemp(new_grid, trial_length=20, trial_seed=None, **kwargs):
     if trial_seed is None:
         gen = random.RandomState()
     else:
@@ -346,10 +435,9 @@ def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_t=
 
     seeds = gen.randint(0, 1e8, trial_length)
 
-    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]), T=T, settle_t=settle_t,
-                                E_samples=E_samples, sample_step=sample_step,
-                                show=False, trial_seed=trial_seed, trial_index=i,
-                                trial_length=trial_length)
+    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]),
+                                trial_seed=trial_seed, trial_index=i,
+                                trial_length=trial_length, **kwargs)
             for i in range(trial_length)]
 
     return ufloat(np.mean(T_crits), np.std(T_crits) / np.sqrt(len(T_crits)))
@@ -463,4 +551,34 @@ def HalfPlateExample():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
+if __name__ == "__main__":
+    if True:
+        files = [a for a in os.listdir("PhaseTransitionData/")
+                if a.startswith("Create333333_10")]
+        LoadPhaseTransitionPlot(files)
+    else:
+        data = []
 
+        from functools import partial
+
+        generators = [Create333333, Create3636, Create4444, Create46_12, Create666]
+        generators = [partial(g, depth=10) for g in generators]
+
+        for g in generators:
+            T_perc = g().findPercolationT()
+
+            T = np.arange(T_perc, 12.0, 0.1)
+            
+            estimate = FindCriticalTemp(g(), T, write_to_file=False)
+
+            T_low = max(T_perc, estimate - 0.4)
+            T_high = estimate + 0.4
+
+            print("Searching", g, "between", T_low, T_high)
+
+            T = np.arange(T_low, T_high, 0.005)
+
+            T_crit = TrialCriticalTemp(g, T=T, trial_length=100, settle_factor=15.0, E_samples=100, sample_step_factor=2.0)
+
+            print("Found", T_crit)
+            data += [(g, T_crit)]
