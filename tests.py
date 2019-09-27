@@ -6,18 +6,20 @@ import numpy as np
 import pickle
 import os
 from numpy import random
+from uncertainties import ufloat
+import json
 
-def Create666(depth):
+def Create666(depth, seed=None):
     hex_constr = TilingConstraint(6)
     hex_constr.set_neighbours([hex_constr], 6)
     hex_constr.set_constraint(hex_constr, 1, -1, -1)
     hex_constr.set_constraint(hex_constr, -1, 1, 1)
 
-    tg = TileGrid(hex_constr, depth, 1.0)
+    tg = TileGrid(hex_constr, depth, 1.0, seed=seed, createID="Create666")
 
     return tg
 
-def Create3636(depth):
+def Create3636(depth, seed=None):
     tri_constr = TilingConstraint(3)
     hex_constr = TilingConstraint(6)
 
@@ -29,11 +31,11 @@ def Create3636(depth):
     hex_constr.set_constraint(tri_constr, 1, -1, -1, -1)
     hex_constr.set_constraint(tri_constr, -1, 1, 1, 1)
 
-    tile = hex_constr.generate(depth=depth)
+    tile = TileGrid(hex_constr, depth, 1.0, seed=seed, createID="Create3636")
 
     return tile
 
-def Create333333(depth):
+def Create333333(depth, seed=None):
     tri_constr = TilingConstraint(3)
 
     tri_constr.set_neighbours([tri_constr], 3)
@@ -41,11 +43,11 @@ def Create333333(depth):
     tri_constr.set_constraint(tri_constr, 1, -1, -1, -1, -1, -1)
     tri_constr.set_constraint(tri_constr, -1, 1, 1, 1, 1, 1)
 
-    tile = tri_constr.generate(depth=depth)
+    tile = TileGrid(tri_constr, depth, 1.0, seed=seed, createID="Create333333")
 
     return tile
 
-def Create555(depth):
+def Create555(depth, seed=None):
     tri_constr = TilingConstraint(5)
 
     tri_constr.set_neighbours([tri_constr], 5)
@@ -53,11 +55,11 @@ def Create555(depth):
     tri_constr.set_constraint(tri_constr, 1, -1, -1)
     tri_constr.set_constraint(tri_constr, -1, 1, 1)
 
-    tile = tri_constr.generate(depth=depth)
+    tile = TileGrid(tri_constr, depth, 1.0, seed=seed, createID="Create555")
 
     return tile
 
-def Create33333(depth):
+def Create33333(depth, seed=None):
     tri_constr = TilingConstraint(3)
 
     tri_constr.set_neighbours([tri_constr], 3)
@@ -65,11 +67,11 @@ def Create33333(depth):
     tri_constr.set_constraint(tri_constr, 1, -1, -1, -1, -1)
     tri_constr.set_constraint(tri_constr, -1, 1, 1, 1, 1)
 
-    tile = tri_constr.generate(depth=depth)
+    tile = TileGrid(tri_constr, depth, 1.0, seed=seed, createID="Create33333")
 
     return tile
 
-def Create4444(depth):
+def Create4444(depth, seed=None):
     sq_constr = TilingConstraint(4)
 
     sq_constr.set_neighbours([sq_constr], 4)
@@ -77,7 +79,7 @@ def Create4444(depth):
     sq_constr.set_constraint(sq_constr, 1, -1, -1, -1)
     sq_constr.set_constraint(sq_constr, -1, 1, 1, 1)
 
-    tile = sq_constr.generate(depth=depth)
+    tile = TileGrid(sq_constr, depth, 1.0, seed=seed, createID="Create4444")
 
     return tile
 
@@ -248,53 +250,109 @@ def CreateSeries():
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
-def PhaseTransition():
-    import scipy.ndimage.filters as filters
-
-    tileGrid = Create666(10)
-
-    T = []
+def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
+                    E_samples=50, sample_step_factor=2.0, show=False,
+                    write_to_file=True, trial_seed=None, trial_index=None,
+                    trial_length=None):
     E = []
-    #m = []
+    m = []
     C = []
 
-    for i in range(0, 100):
-        redT = 10 - i / 10
-        T += [redT]
-        for j in range(1000):
-            tileGrid.wolff()
+    for temp in T:
+        grid.redT = temp
+        log.info(f"Calculating at temperature {temp:.3f}")
+
+        remaining = settle_factor * grid.getSize()
+        while remaining > 0:
+            remaining -= grid.wolff()
 
         E2 = []
 
-        for _ in range(100):
-            for _ in range(100):
-                tileGrid.wolff()
-            E2 += [tileGrid.getAverageEnergy()]
+        for _ in range(E_samples):
+            remaining = sample_step_factor * grid.getSize()
+            while remaining > 0:
+                remaining -= grid.wolff()
+            
+            E2 += [grid.getAverageEnergy()]
 
-        E += [tileGrid.getAverageEnergy()]
-        #m += [tile.getAverageMagnetization()]
+        E += [np.mean(E2)]
+        m += [grid.getAverageMagnetization()]
 
-        C += [np.var(E2)/(redT)**2]
+        C += [np.var(E2) / temp ** 2]
 
-    plt.figure()
-    plt.plot(T, filters.gaussian_filter1d(E, 5), label="E")
-    plt.legend()
+    if show:
+        plt.figure()
+        plt.plot(T, E, label="E")
+        plt.legend()
 
-    plt.figure()
-    plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
-    plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
-    plt.legend()
-    plt.show(block=False)
+    ##    plt.figure()
+    ##    plt.plot(T[1:], filters.gaussian_filter1d(np.diff(E), 5), label="C")
+    ##    plt.plot(T[1:], np.diff(filters.gaussian_filter1d(E, 5)), label="CAlt")
+    ##    plt.legend()
+    ##    plt.show(block=False)
 
-    plt.figure()
-    plt.plot(T, C, label="CFromVar")
-    plt.legend()
-    plt.show(block=False)
+        plt.figure()
+        plt.plot(T, C, label="CFromVar")
+        plt.legend()
+        plt.show(block=False)
 
-    #plt.figure()
-    #plt.plot(T, m, label="m")
-    #plt.legend()
-    #plt.show(block=False)
+        plt.figure()
+        plt.plot(T, m, label="m")
+        plt.legend()
+        plt.show(block=False)
+    critTempNaive = T[np.argmax(C)]
+
+    if write_to_file:
+        genRepr = grid.getGenRepr()
+        i = 0
+        filenameFormat = f"PhaseTransitionData/{genRepr}_{{0}}.txt"
+        filename = filenameFormat.format(i)
+        while os.path.exists(filename):
+            i += 1
+            filename = filenameFormat.format(i)
+
+        file = open(filename, "w")
+        paramDict = {"genRepr": genRepr, "settle_factor": settle_factor,
+                   "E_samples": E_samples, "sample_step_factor": sample_step_factor,
+                   "trial_seed": trial_seed,
+                   "trial_index": trial_index,
+                   "trial_length": trial_length,
+                   "crit_temp_naive": critTempNaive}
+#        if trial_seed is not None:
+#            paramDict["trial_seed"] = trial_seed
+#        if trial_index is not None:
+#            paramDict["trial_index"] = trial_index
+#        if trial_length is not None:
+#            paramDict["trial_length"] = trial_length
+
+        file.write("# PARAM_DICT {}\n".format(json.dumps(paramDict)))
+        file.write(f"# CRIT_TEMP_NAIVE {critTempNaive:.4e}\n")
+
+        file.write(f"# FORMAT T, E, C, m\n")
+        dat = np.transpose(np.array([T, E, C, m]))
+        for row in dat:
+            file.write(",\t".join(["{:.4f}".format(a) if 0.01 <= abs(a) <= 1000
+                                   else "{:.4e}".format(a) for a in row]) + "\n")
+        file.close()
+
+    return critTempNaive
+
+def TrialCriticalTemp(new_grid, trial_length=20, T=np.linspace(1, 10), settle_t=100,
+                        E_samples=100, sample_step=100, trial_seed=None):
+    if trial_seed is None:
+        gen = random.RandomState()
+    else:
+        gen = random.RandomState(trial_seed)
+
+    seeds = gen.randint(0, 1e8, trial_length)
+
+    T_crits = [FindCriticalTemp(new_grid(seed=seeds[i]), T=T, settle_t=settle_t,
+                                E_samples=E_samples, sample_step=sample_step,
+                                show=False, trial_seed=trial_seed, trial_index=i,
+                                trial_length=trial_length)
+            for i in range(trial_length)]
+
+    return ufloat(np.mean(T_crits), np.std(T_crits) / np.sqrt(len(T_crits)))
 
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
