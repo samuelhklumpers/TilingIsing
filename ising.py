@@ -289,7 +289,7 @@ class TilingConstraint:
         self.neighs = constraints, repetitions
 
     def generate(self, depth, randGen):
-        """Generate a grid of the given depth, according to this constraint."""
+        """Generate a grid of the given depth, according to this constraint"""
         q = queue.Queue()
         t0 = Tile(0, self.n, randGen=randGen)
         t0.depth = depth
@@ -551,7 +551,7 @@ class Tile:
     @staticmethod
     def display(self, ax, r, orientation, r0, prev):
         """Method for displaying this tile and specifying which tiles
-        should be displayed next. Should be used with TileGrid#corecurse."""
+           should be displayed next. Should be used with TileGrid#corecurse."""
         n = len(self.neighs)
 
         dr = r / (2 * np.tan(np.pi / n))
@@ -593,7 +593,7 @@ class Tile:
         return new, []
 
     def getEnergyAt(self):
-        """Get the contribution to the total energy given by this tile."""
+        """Get the contribution to the total energy given by this tile"""
         dn = -sum(self.spin * neigh.spin for neigh in self.neighs if neigh is not None)
 
         return dn
