@@ -357,7 +357,7 @@ def GetElementwiseAvgStd(dataRefList, xAx, yAx):
     dataAvailableCount = np.zeros(len(dataDict))
     
     index = 0
-    for val in dataDict.items():
+    for val in sorted(dataDict.items()):
         dataAvg[xAx][index] = val[0]
         dataAvailableCount[index] = len(val[1][0])
         for i in range(len(yAx)):
@@ -366,6 +366,8 @@ def GetElementwiseAvgStd(dataRefList, xAx, yAx):
         index += 1
     if index != len(dataDict):
         raise Exception("Unexpected situation")
+    
+        
     return (dataAvg, dataStd, dataAvailableCount)
 
 def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=True,
@@ -436,21 +438,21 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
 class DataFileIter:
     def __init__(self, timestampFrom = None, isTimestampUTC=False, extraConditions = []):
         if timestampFrom != None and not isTimestampUTC:
-            timestampFrom = timestampFrom.replace(tzinfo=tz.tzlocal())
-            self.timestampFromUTC = timestampFrom.astimezone(tz.tzutc())
+            self.timestampFrom = timestampFrom.replace(tzinfo=tz.tzlocal())
         else:
-            self.timestampFromUTC = timestampFrom
+            self.timestampFrom = timestampFrom.replace(tzinfo=tz.tzutc())
         self.extraConditions = extraConditions
             
     def __iter__(self):
         self.fileIter = iter(os.listdir("PhaseTransitionData/"))
+        return self
         
     def __next__(self):
         while True:
             fileName = next(self.fileIter)
             
-            if self.timestampFromUTC != None and datetime.datetime.utcfromtimestamp(
-                    os.path.getmtime("PhaseTransitionData/{}".format(fileName))) < self.timestampFromUTC:
+            if self.timestampFrom != None and datetime.datetime.utcfromtimestamp(
+                    os.path.getmtime("PhaseTransitionData/{}".format(fileName))).replace(tzinfo=tz.tzutc()) < self.timestampFrom:
                 continue
             
             dataFile = AsDataFile(fileName)
@@ -467,36 +469,23 @@ class DataFileIter:
             
     
 def GroupGenRepr(**kwargs):
+    groupings = {}
+    
     for dataFile in DataFileIter(**kwargs):
-        genRepr = dataFile.params
-        groupingCat = fileName[:fileName.find('_', fileName.find('_') + 1)]
-    
-    
-    if timestampFrom != None:
-        timestampFrom = timestampFrom.replace(tzinfo=tz.tzlocal())
-        timestampFrom = timestampFrom.astimezone(tz.tzutc())
-    
-    files = [a for a in os.listdir("PhaseTransitionData/")
-            if timestampFrom == None or datetime.datetime.utcfromtimestamp(os.path.getmtime("PhaseTransitionData/{}".format(a))) >= timestampFrom]
-    
-    
+        genRepr = dataFile.params["genRepr"]
+        groupingCat = genRepr[:genRepr.find('_', genRepr.find('_') + 1)]
+        if groupingCat in groupings:
+            groupings[groupingCat] += [dataFile]
+        else:
+            groupings[groupingCat] = [dataFile]
+    return [["@{}".format(a[0]), *a[1]] for a in groupings.items()]
     
 
-def ShowPhaseTransitionNewerThan(timestampFrom, **kwargs):
-    files = [a for a in os.listdir("PhaseTransitionData/")
-            if datetime.datetime.utcfromtimestamp(os.path.getmtime("PhaseTransitionData/{}".format(a))) >= timestampFrom]
-    groupings = {}
-    for fileName in files:
-        groupingCat = fileName[:fileName.find('_', fileName.find('_') + 1)]
-        #if groupingCat.startswith("Create33333") or groupingCat.startswith("Create555_"):
-        #    continue
-        
-        if groupingCat in groupings:
-            groupings[groupingCat] += [fileName]
-        else:
-            groupings[groupingCat] = [fileName]
-    
-    return LoadPhaseTransitionPlot([["@{}".format(a[0]), *a[1]] for a in groupings.items()], **kwargs)
+def ShowPhaseTransitionNewerThan(timestampFrom = None, isTimestampUTC=False, extraConditions = [],
+                                 **kwargs):
+    return LoadPhaseTransitionPlot(list(GroupGenRepr(timestampFrom=timestampFrom,
+                                                     isTimestampUTC=isTimestampUTC,
+                                                     extraConditions=extraConditions)), **kwargs)
 
 def DoBalanceTest(balance = 1.0):
     TrialCriticalTemp(lambda seed: Create3636(20, seed), sample_step_factor=2.0 * balance,
