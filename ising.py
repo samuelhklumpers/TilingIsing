@@ -32,10 +32,10 @@ class IGrid:
 
     def wolff(self):
         ...
-        
+
     def getGenRepr(self):
         ...
-        
+
     def getSize(self):
         ...
 
@@ -109,7 +109,7 @@ class SquareGrid(IGrid):
         q = queue.Queue()
         q.put((i, j))
         visited[(i, j)] = True
-        
+
         counter = 1
         while not q.empty():
             l = q.get()
@@ -140,13 +140,13 @@ class SquareGrid(IGrid):
 
     def plot(self, axis, **kwargs):
         axis.imshow(self.grid, clim=(0, 1), **kwargs)
-        
+
     def getGenRepr(self):
         return f"SquareGrid_{self.grid.shape[0]}x{self.grid.shape[1]}_{self.seed}"
-    
+
     def getSize(self):
         return self.grid.size
-    
+
 class ExternalGrid:
     def __init__(self, n, t_func, t_callback=None, dE_func=None, seed=None):
         """
@@ -166,7 +166,7 @@ class ExternalGrid:
             seed = random.randint(0, 1e8)
         self.seed = seed
         self.rand = random.RandomState(seed=self.seed)
-        
+
         self.grid = 2 * self.rand.randint(0, 2, size=(n, n), dtype=np.int8) - 1
 
         log.info(f"Generated external grid {n}x{n} with seed {seed}")
@@ -249,7 +249,7 @@ class ExternalGrid:
 
     def getGenRepr(self):
         return f"ExternalGrid_{self.grid.shape[0]}x{self.grid.shape[1]}_{self.seed}"
-    
+
     def getSize(self):
         return self.grid.size
 
@@ -305,7 +305,7 @@ class TilingConstraint:
                         i0 = curr.neighs.index(prev)
                     except:
                         continue
-                    
+
                     i = (i0 + winding) % len(curr.neighs)
 
                     prev, curr = curr, curr.neighs[i]
@@ -342,7 +342,7 @@ class TilingConstraint:
             j = (j0 + dx) % len(self.neighs[0])
 
             if tile.neighs[i] is None:
-                neigh = Tile(1, self.neighs[0][j].n, randGen=randGen)
+                neigh = Tile(0, self.neighs[0][j].n, randGen=randGen)
                 neigh.constraint = self.neighs[0][j]
                 neigh.depth = tile.depth - 1
 
@@ -360,7 +360,7 @@ class TileGrid(IGrid):
         self.seed = seed
         self.rand = random.RandomState(seed=self.seed)
         self.createID = createID
-        
+
         self.constraint = constraint
         self.depth = depth
         self.redT = redT
@@ -411,7 +411,7 @@ class TileGrid(IGrid):
             for i in range(50):
                 for t in self.lis:
                     t.spin = -1
-                
+
                 start = int(self.rand.rand() * len(self.lis))
                 start = self.lis[start]
 
@@ -484,16 +484,16 @@ class TileGrid(IGrid):
             fig.show()
 
         return fig, ax
-    
+
     def getGenRepr(self):
         return self.createID + f"_{self.depth}_{self.seed}"
-    
+
     def getSize(self):
         return len(self.lis)
 
 class Tile:
     def __init__(self, spin, n_neighs, randGen):
-        self.spin = randGen.choice([-1.0, 1.0])#spin
+        self.spin = spin if spin else randGen.choice([-1.0, 1.0])
         self.neighs = [None] * n_neighs
         self.visited = False
         self.r = None
@@ -530,7 +530,7 @@ class Tile:
 
             if self.neighs[i] is not None:
                 new_r = r0 + dr * orientation
-                
+
                 if self.neighs[i] != prev:
                     new += [(self.neighs[i], (orientation, new_r, self))]
 
