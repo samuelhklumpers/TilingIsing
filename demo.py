@@ -1,8 +1,9 @@
 from tests import Create4444, Create666, AnimateTile, ShowAnimate, FindCriticalTemp,\
-Create333333, Create3636, Create46_12, TrialCriticalTemp
+Create333333, Create3636, Create46_12, TrialCriticalTemp, ShowPhaseTransitionNewerThan
 from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
+import datetime
 #Exp2_6_1, Exp2_6_2, Exp2_6_3, Exp2_6_4, Exp2_6_5
 
 if True:
@@ -39,7 +40,7 @@ if True:
         
         T_res = (4.0 - 1.2) / 20
         T_crit.std_dev = T_res
-    print(T_crit)
+        print(T_crit)
 
 if False:
     for g in generators:
@@ -81,5 +82,10 @@ if True:
     axm.set_ylabel("$|m|$")
     axm.set_xlabel(r"$T_{red}$")
     
-    fig.savefig("single sample")
+    fig.suptitle("A single trial of 3.3.3.3.3.3")
+    
+    fig.savefig("single trial")
     fig.show()
+    
+if True:
+    ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,25), yAx=["C", "E", "CDens"])
