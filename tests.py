@@ -450,8 +450,7 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
             
         dataFiles = [AsDataFile(filename) for filename in curveData]
         dataAvg, dataStd, dataAvailableCount = GetElementwiseAvgStd(dataFiles, xAx, yAx)
-        
-        data = np.genfromtxt(path, names=colNames, delimiter=",\t")
+    
         for j in range(0, len(yAx)):
             ax[j].plot(dataAvg[xAx], dataAvg[yAx[j]], label=curveDataLabel,
                   color=colors[colorIndex])
@@ -746,8 +745,8 @@ def HalfPlateExample():
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
 if __name__ == "__main__":
-    if False:
-        ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,27), yAx=["C", "E", "CDens"])
+    if True:
+        ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,26), yAx=["C", "E", "CDens"])
     else:
         data = []
 
