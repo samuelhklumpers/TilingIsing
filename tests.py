@@ -226,35 +226,6 @@ def Exp2_6_5():
             gr.plot(axis=ax[j])
         plt.show()
 
-def GenerateSeries():
-    grid = SquareGrid(50, 0.5, DEFAULT_SEEDS[0])
-
-    for i in range(100):
-        with open(f"series\\series{i:03}.dat", mode="wb") as f:
-            pickle.dump(grid.grid, f)
-
-        for j in range(100000):
-            grid.metro()
-
-def AnimateSeries():
-    fig = plt.figure()
-
-    ims = []
-    i = 0
-    for fn in os.listdir("series\\"):
-        with open("series\\" + fn, mode="rb") as f:
-            grid = pickle.load(f)
-
-        ims.append([plt.imshow(grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
-        i += 1
-
-    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
-                                repeat_delay=0)
-
-    ani.save("series.gif", writer=PillowWriter(fps=10))
-
-
-
 def ShowAnimate(gridsize=300, redT = 5.0,
                       frames=100, framechanges=300):
     seed = random.seed(DEFAULT_SEEDS[0])
@@ -652,57 +623,6 @@ def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                                 repeat_delay=0)
 
     ani.save(seriesname, writer=PillowWriter(fps=10))
-
-def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
-    grid = SquareGrid(n, redT)
-
-    prev_top = 4
-    prev_bot = -4
-
-    plt.figure()
-
-    E_axis = []
-
-    while True:
-        top = -4
-        bot = 4
-
-        E_axis += [grid.getAverageEnergy()]
-
-        for i in range(sample_time):
-            E = grid.getAverageEnergy()
-
-            top = max(E, top)
-            bot = min(E, bot)
-
-            grid.wolff()
-
-        if top > prev_top and bot < prev_bot:
-            for j in range(1):
-                for i in range(epoch_time):
-                    grid.wolff()
-
-                E_axis += [grid.getAverageEnergy()]
-
-            plt.plot(list(range(len(E_axis))), E_axis)
-            plt.show(block=True)
-
-            return grid
-
-        prev_top, prev_bot = top, bot
-
-        for i in range(epoch_time):
-            grid.wolff()
-
-def HexWolff(depth=4, redT=4.0):
-    tileGrid = Create666(depth)
-
-    fig, ax = plt.subplots(figsize=(15, 15))
-
-
-    for i in range(10):
-        tileGrid.display()
-        tileGrid.wolff()
 
 def AnimateTile(tileGrid, redT=8.0, frameskip=1):
     fig, ax = plt.subplots(figsize=(15, 15))

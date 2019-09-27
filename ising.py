@@ -1,10 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Sep  8 21:16:30 2019
-
-@author: Vincent
-"""
-
 import numpy as np
 from numpy import random
 import matplotlib.pyplot as plt
@@ -14,7 +8,6 @@ import queue
 from collections import deque
 DEFAULT_SEEDS = [2019090814]
 
-#logging.reset()
 fh = logging.FileHandler("log.txt", mode="w")
 stdout_handle = logging.StreamHandler(sys.stdout)
 log = logging.getLogger(__name__)
