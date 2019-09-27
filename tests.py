@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.animation import PillowWriter
 import numpy as np
-import pickle
 import os
 from numpy import random
 from uncertainties import ufloat
@@ -14,6 +13,7 @@ import math
 from dateutil import tz
 import errno
 
+"""A set of methods for creating some tilings of the plane"""
 def Create666(depth, seed=None):
     hex_constr = TilingConstraint(6)
     hex_constr.set_neighbours([hex_constr], 6)
@@ -130,6 +130,7 @@ def Create33434(depth, seed=None):
 
     return TileGrid(c4, depth, 1.0, seed=seed, createID="Create33434")
 
+"""Exploratory experiments"""
 def Exp2_6_1():
     gr = SquareGrid(20, 5.0)
     numberOfAttempts = 0
@@ -226,35 +227,7 @@ def Exp2_6_5():
             gr.plot(axis=ax[j])
         plt.show()
 
-def GenerateSeries():
-    grid = SquareGrid(50, 0.5, DEFAULT_SEEDS[0])
-
-    for i in range(100):
-        with open(f"series\\series{i:03}.dat", mode="wb") as f:
-            pickle.dump(grid.grid, f)
-
-        for j in range(100000):
-            grid.metro()
-
-def AnimateSeries():
-    fig = plt.figure()
-
-    ims = []
-    i = 0
-    for fn in os.listdir("series\\"):
-        with open("series\\" + fn, mode="rb") as f:
-            grid = pickle.load(f)
-
-        ims.append([plt.imshow(grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
-        i += 1
-
-    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
-                                repeat_delay=0)
-
-    ani.save("series.gif", writer=PillowWriter(fps=10))
-
-
-
+"""Animate a SquareGrid"""
 def ShowAnimate(gridsize=300, redT = 5.0,
                       frames=100, framechanges=300):
     seed = random.seed(DEFAULT_SEEDS[0])
@@ -279,26 +252,15 @@ def ShowAnimate(gridsize=300, redT = 5.0,
     ani = animation.FuncAnimation(fig, update)#, frames=range(1000))
     plt.show()
     return ani
-
-def CreateSeries():
-    grid = SquareGrid(30, 10, DEFAULT_SEEDS[0])
-
-    ims = []
-    fig = plt.figure()
-
-    for i in range(100):
-        for _ in range(1000):
-            grid.metro()
-
-        ims.append([plt.imshow(grid.grid, clim=(0, 1)), plt.text(0.9, 1.2, i)])
-
-    ani = animation.ArtistAnimation(fig, ims, interval=100, blit=True,
-                                repeat_delay=0)
-
-    ani.save("series.gif", writer=PillowWriter(fps=10))
-    
     
 class DataFile:
+    """"
+    Class representing a file of data, here the data files as generated 
+    by FindCriticalTemp but often called through TrialCriticalTemp.
+    That function logs the different values at different reduced
+    temperatures, allowing us to extract different data afterwards 
+    without needing to run heavy calculations each time.
+    """
     def __init__(self, filename, loadData=True, **kwargs):
         self.filename = filename
         path = filename
@@ -318,8 +280,9 @@ class DataFile:
         self.LoadMetadata()
         if loadData:
             self.LoadData(True)
-            
+
     def LoadMetadata(self):
+        """Load parameters written to the files"""
         self.params = {}
         self.colNames = []
         with open(self.path, "r") as paramRead:
@@ -343,6 +306,7 @@ class DataFile:
         
         
     def LoadData(self, forceReload=False):
+        """Load the actual data in the file"""
         if not forceReload and self.data != None:
             return
         self.data = None
@@ -364,11 +328,15 @@ class DataFile:
             self.data = newData        
             
 def AsDataFile(f, **kwargs):
+    """If not already a DataFile, use the filename to load a DataFile"""
     if type(f) == DataFile:
         return f
     return DataFile(f)
 
 def GetElementwiseAvgStd(dataRefList, xAx, yAx):
+    """Calculate average and standard deviation of yAx columns in multiple 
+    curve data as specified in dataRefList, aligned to the same values of 
+    the column xAx."""
     dataAvg = None
     dataStd = None
     dataAvailableCount = None
@@ -414,7 +382,13 @@ def GetElementwiseAvgStd(dataRefList, xAx, yAx):
 
 def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=True,
                             xTicksInterval=0.5):
+    """Show data stored in subplots. Elements in filenames of type array will get
+    combined together into one curve with use of GetElementwiseAvgStd."""
+    
     if not showInSubplots:
+        """Show in separate plots by calling this function with one
+        yAx value each time, essentially creating subplots with one
+        row."""
         for yAxVal in yAx:
             LoadPhaseTransitionPlot(filenames, xAx, [yAxVal])
         return
@@ -431,6 +405,8 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
    
     balances = {}
     
+    """Curve colors will be specified to keep colors the same where
+    they should be."""
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     colorIndex = 0
     
@@ -439,6 +415,10 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
         curveDataLabel = ""
         if type(curveData) == str:
             curveData = [curveData]
+            
+        """Grouped files to be displayed in the same curve (see GetElementwiseAvgStd)
+        can be preceded by a string of the format "@{curveLabel}", allowing for a
+        meaningful curve label when shown."""
         if len(curveData) > 1:
             if curveData[0].startswith("@"):
                 curveDataLabel = curveData[0][1:]
@@ -450,11 +430,13 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
             
         dataFiles = [AsDataFile(filename) for filename in curveData]
         dataAvg, dataStd, dataAvailableCount = GetElementwiseAvgStd(dataFiles, xAx, yAx)
-    
+        
+        #Plot the different values (yAx) against xAx
         for j in range(0, len(yAx)):
             ax[j].plot(dataAvg[xAx], dataAvg[yAx[j]], label=curveDataLabel,
                   color=colors[colorIndex])
             if dataStd is not None:
+                #Use fill_between to show a band of the standard deviation
                 ax[j].fill_between(dataAvg[xAx], dataAvg[yAx[j]] - dataStd[yAx[j]], 
                   dataAvg[yAx[j]] + dataStd[yAx[j]],
                   color=colors[colorIndex], alpha=0.3)
@@ -466,6 +448,10 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
         ax[j].set_xlabel(xAx)
         ax[j].grid()
         xlim = ax[j].get_xlim()
+        """The default xticks can sometimes be unusefully far apart, if the 
+        parameter xTicksInterval is left on its default value or specified 
+        with a value other that None custom ticks will be set using the 
+        parameter value."""
         if xTicksInterval != None:
             baseValue = math.ceil(xlim[0] / xTicksInterval) * xTicksInterval
             values = np.arange(baseValue, xlim[1], xTicksInterval)
@@ -478,6 +464,10 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
     plt.show(block=False)
     
 class DataFileIter:
+    """
+    Iterate through the stored data files and allow filtering conditions for them.  
+    """
+    
     def __init__(self, timestampFrom = None, isTimestampUTC=False, extraConditions = []):
         if timestampFrom != None and not isTimestampUTC:
             self.timestampFrom = timestampFrom.replace(tzinfo=tz.tzlocal())
@@ -493,6 +483,7 @@ class DataFileIter:
         while True:
             fileName = next(self.fileIter)
             
+            #Require the file to be newer than the specified time.
             if self.timestampFrom != None and datetime.datetime.utcfromtimestamp(
                     os.path.getmtime("PhaseTransitionData/{}".format(fileName))).replace(tzinfo=tz.tzutc()) < self.timestampFrom:
                 continue
@@ -509,8 +500,9 @@ class DataFileIter:
             if allowed:
                 return dataFile        
             
-    
 def GroupGenRepr(**kwargs):
+    """Return groups of the data file according to its generation
+    type, e.g. group Create666_8_57023792_0.txt, Create666_8_65629215_0.txt under Create666_8."""
     groupings = {}
     
     for dataFile in DataFileIter(**kwargs):
@@ -525,15 +517,18 @@ def GroupGenRepr(**kwargs):
 
 def ShowPhaseTransitionNewerThan(timestampFrom = None, isTimestampUTC=False, extraConditions = [],
                                  **kwargs):
-    return LoadPhaseTransitionPlot(list(GroupGenRepr(timestampFrom=timestampFrom,
+    return LoadPhaseTransitionPlot(GroupGenRepr(timestampFrom=timestampFrom,
                                                      isTimestampUTC=isTimestampUTC,
-                                                     extraConditions=extraConditions)), **kwargs)
+                                                     extraConditions=extraConditions), **kwargs)
 
 def DoBalanceTest(balance = 1.0):
     TrialCriticalTemp(lambda seed: Create3636(20, seed), sample_step_factor=2.0 * balance,
                       E_samples=50/balance)   
     
-
+"""Find the T_crit of this Grid.
+Sampling at T, waiting initially for 15 * #tiles to be flipped.
+Sampling E_samples values at each T, waiting for 2 * #tiles to be flipped each sample.
+"""
 def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                     E_samples=50, sample_step_factor=2.0, show=False,
                     write_to_file=True, trial_seed=None, trial_index=None,
@@ -542,8 +537,6 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
     m = []
     C = []
     
-    startTime = datetime.datetime.utcnow()
-
     for temp in T:
         grid.redT = temp
         #log.info(f"Calculating at temperature {temp:.3f}")
@@ -588,8 +581,6 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
         plt.show(block=False)
     critTempNaive = T[np.argmax(C)]
     
-    endTime = datetime.datetime.utcnow()
-
     if write_to_file:
         genRepr = grid.getGenRepr()
         i = 0
@@ -606,7 +597,6 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                    "trial_index": trial_index,
                    "trial_length": trial_length,
                    "crit_temp_naive": critTempNaive, "gridSize": grid.getSize()}
-                   #"simulation_start_time": startTime, "simulation_end_time": endTime}
 
         file.write("# PARAM_DICT {}\n".format(json.dumps(paramDict)))
         file.write(f"# CRIT_TEMP_NAIVE {critTempNaive:.4e}\n")
@@ -620,6 +610,8 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
     return critTempNaive
 
+"""Repeat the FindCriticalTemp call trial_length times, and
+return the average outcome and its external error."""
 def TrialCriticalTemp(new_grid, trial_length=20, trial_seed=None, **kwargs):
     if trial_seed is None:
         gen = random.RandomState()
@@ -635,6 +627,7 @@ def TrialCriticalTemp(new_grid, trial_length=20, trial_seed=None, **kwargs):
 
     return ufloat(np.mean(T_crits), np.std(T_crits) / np.sqrt(len(T_crits)))
 
+"""Animate a Grid and export to .gif"""
 def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
                       frames=100, framechanges=100):
     grid = SquareGrid(gridsize, redT, DEFAULT_SEEDS[0])
@@ -653,57 +646,7 @@ def CreateSeriesWolff(seriesname="series.gif", gridsize=100, redT=1.0,
 
     ani.save(seriesname, writer=PillowWriter(fps=10))
 
-def UntilEquilibrium(n=100, redT=1.0, sample_time=10, epoch_time=100):
-    grid = SquareGrid(n, redT)
-
-    prev_top = 4
-    prev_bot = -4
-
-    plt.figure()
-
-    E_axis = []
-
-    while True:
-        top = -4
-        bot = 4
-
-        E_axis += [grid.getAverageEnergy()]
-
-        for i in range(sample_time):
-            E = grid.getAverageEnergy()
-
-            top = max(E, top)
-            bot = min(E, bot)
-
-            grid.wolff()
-
-        if top > prev_top and bot < prev_bot:
-            for j in range(1):
-                for i in range(epoch_time):
-                    grid.wolff()
-
-                E_axis += [grid.getAverageEnergy()]
-
-            plt.plot(list(range(len(E_axis))), E_axis)
-            plt.show(block=True)
-
-            return grid
-
-        prev_top, prev_bot = top, bot
-
-        for i in range(epoch_time):
-            grid.wolff()
-
-def HexWolff(depth=4, redT=4.0):
-    tileGrid = Create666(depth)
-
-    fig, ax = plt.subplots(figsize=(15, 15))
-
-
-    for i in range(10):
-        tileGrid.display()
-        tileGrid.wolff()
-
+"""Animate a Grid in an interactive plot."""
 def AnimateTile(tileGrid, redT=8.0, frameskip=1):
     fig, ax = plt.subplots(figsize=(15, 15))
 
@@ -722,6 +665,7 @@ def AnimateTile(tileGrid, redT=8.0, frameskip=1):
     plt.show()
     return ani
 
+"""Demo for external influences on Grids."""
 def HalfPlateExample():
     n = 30
     grid = None
@@ -745,9 +689,9 @@ def HalfPlateExample():
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
 if __name__ == "__main__":
-    if True:
+    if False:
         ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,26), yAx=["C", "E", "CDens"])
-    else:
+    elif False:
         data = []
 
         from functools import partial
@@ -773,3 +717,5 @@ if __name__ == "__main__":
 
             print("Found", T_crit)
             data += [(g, T_crit)]
+    else:
+        ...
