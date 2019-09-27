@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import logging
 import sys
 import queue
-
+from collections import deque
 DEFAULT_SEEDS = [2019090814]
 
 #logging.reset()
@@ -308,7 +308,11 @@ class TilingConstraint:
                     if curr is None:
                         break
 
-                    i0 = curr.neighs.index(prev)
+                    try:
+                        i0 = curr.neighs.index(prev)
+                    except:
+                        continue
+                    
                     i = (i0 + winding) % len(curr.neighs)
 
                     prev, curr = curr, curr.neighs[i]
@@ -316,7 +320,10 @@ class TilingConstraint:
                 if curr is None:
                     continue
                 else:
-                    i0 = curr.neighs.index(prev)
+                    try:
+                        i0 = curr.neighs.index(prev)
+                    except:
+                        continue
                     i = (i0 + target_wind) % len(curr.neighs)
 
                     tile.neighs[k] = curr
@@ -404,6 +411,33 @@ class TileGrid(IGrid):
 
         return self.corecurse((start, ()), lambda rep, ret: start.wolff(rep, ret, p, v0, randGen=self.rand), default=0)
 
+    def findPercolationT(self):
+        for T in np.arange(12.5, -0.5, -1.0):
+            n = 0
+            self.redT = T
+            for i in range(50):
+                for t in self.lis:
+                    t.spin = -1
+                
+                start = int(self.rand.rand() * len(self.lis))
+                start = self.lis[start]
+
+                self.unvisit()
+
+                beta = 1 / self.redT
+                p = 1 - np.exp(-2 * beta)
+                v0 = start.spin
+
+                flipped = self.corecurse((start, ()), lambda rep, ret: start.wolff(rep, ret, p, v0, randGen=self.rand), default=0)
+
+                if flipped > len(self.lis) * 0.9:
+                    n += 1
+
+            if n > 30:
+                return T
+
+        return 11.5
+
     def unvisit(self):
         for t in self.lis:
             t.visited = False
@@ -413,23 +447,23 @@ class TileGrid(IGrid):
         #import pdb
         #pdb.set_trace()
 
-        q = queue.Queue()
+        q = deque()
 
-        q.put(rep)
+        q.append(rep)
         rep[0].visited = True
         ret = [] if default is None else default
 
         visited = set()
 
-        while not q.empty():
-            tile, args = q.get()
+        while q:
+            tile, args = q.popleft()
 
             new, ret = f(tile, ret, *args)
 
             for n in new:
                 if n[0] is not None and not n[0].visited:
                     n[0].visited = True
-                    q.put(n)
+                    q.append(n)
                     visited.add(n[0])
 
         for tile in visited:

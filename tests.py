@@ -88,6 +88,48 @@ def Create4444(depth, seed=None):
 
     return tile
 
+def Create46_12(depth, seed=None):
+    c4 = TilingConstraint(4)
+    c6 = TilingConstraint(6)
+    c12 = TilingConstraint(12)
+
+    c4.set_neighbours([c6, c12], 2)
+    c6.set_neighbours([c4, c12], 3)
+    c12.set_neighbours([c4, c6], 6)
+
+    c4.set_constraint(c6, 1, -1, -1)
+    c4.set_constraint(c6, -1, 1, 1)
+    c4.set_constraint(c12, 1, -1, -1)
+    c4.set_constraint(c12, -1, 1, 1)
+
+    c6.set_constraint(c4, 1, -1, -1)
+    c6.set_constraint(c4, -1, 1, 1)
+    c6.set_constraint(c12, 1, -1, -1)
+    c6.set_constraint(c12, -1, 1, 1)
+
+    c12.set_constraint(c4, 1, -1, -1)
+    c12.set_constraint(c4, -1, 1, 1)
+    c12.set_constraint(c6, 1, -1, -1)
+    c12.set_constraint(c6, -1, 1, 1)
+
+    return TileGrid(c12, depth, 1.0, seed=seed, createID="Create46_12")
+
+def Create33434(depth, seed=None):
+    c3 = TilingConstraint(3) #broken
+    c4 = TilingConstraint(4)
+
+    c3.set_neighbours([c3, c4, c4], 1)
+    c4.set_neighbours([c3], 4)
+
+    c3.set_constraint(c4, -1, 1, 1, 1, 1)
+    c3.set_constraint(c4, 1, -1, -1, -1, -1)
+    c3.set_constraint(c3, 1, -1, -1, -1, -1)
+    c3.set_constraint(c3, -1, 1, 1, 1, 1)
+    c4.set_constraint(c3, -1, 1, 1, 1, 1)
+    c4.set_constraint(c3, 1, -1, -1, -1, -1)
+
+    return TileGrid(c4, depth, 1.0, seed=seed, createID="Create33434")
+
 def Exp2_6_1():
     gr = SquareGrid(20, 5.0)
     numberOfAttempts = 0
@@ -386,7 +428,7 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
         ax = [ax]
         
     matplotlib.rcParams.update({'font.size': 10})
-    
+   
     balances = {}
     
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -409,6 +451,7 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
         dataFiles = [AsDataFile(filename) for filename in curveData]
         dataAvg, dataStd, dataAvailableCount = GetElementwiseAvgStd(dataFiles, xAx, yAx)
         
+        data = np.genfromtxt(path, names=colNames, delimiter=",\t")
         for j in range(0, len(yAx)):
             ax[j].plot(dataAvg[xAx], dataAvg[yAx[j]], label=curveDataLabel,
                   color=colors[colorIndex])
@@ -493,7 +536,7 @@ def DoBalanceTest(balance = 1.0):
     
 
 def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
-                    E_samples=200, sample_step_factor=3.0, show=False,
+                    E_samples=50, sample_step_factor=2.0, show=False,
                     write_to_file=True, trial_seed=None, trial_index=None,
                     trial_length=None):
     E = []
@@ -504,7 +547,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
     for temp in T:
         grid.redT = temp
-        log.info(f"Calculating at temperature {temp:.3f}")
+        #log.info(f"Calculating at temperature {temp:.3f}")
 
         remaining = settle_factor * grid.getSize()
         while remaining > 0:
@@ -580,8 +623,9 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
 
 def TrialCriticalTemp(new_grid, trial_length=20, trial_seed=None, **kwargs):
     if trial_seed is None:
-        trial_seed = random.randint(10e8)
-    gen = random.RandomState(trial_seed)
+        gen = random.RandomState()
+    else:
+        gen = random.RandomState(trial_seed)
 
     seeds = gen.randint(0, 1e8, trial_length)
 
@@ -702,18 +746,31 @@ def HalfPlateExample():
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
 if __name__ == "__main__":
-    """
-    files = [a for a in os.listdir("PhaseTransitionData/")
-            if a.startswith("Create3636_20")]
-    LoadPhaseTransitionPlot(files)
-    files = [a for a in os.listdir("PhaseTransitionData/")
-            if a.startswith("Create3636_10")]
-    LoadPhaseTransitionPlot(files)
-    """
-    #ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,25))
-    ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,27), yAx=["C", "E", "CDens"])
-    
-    #LoadPhaseTransitionPlot(files)
-    #for f in os.path.walker()
+    if False:
+        ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,27), yAx=["C", "E", "CDens"])
+    else:
+        data = []
 
+        from functools import partial
 
+        generators = [Create333333, Create3636, Create4444, Create46_12, Create666]
+        generators = [partial(g, depth=10) for g in generators]
+
+        for g in generators:
+            T_perc = g().findPercolationT()
+
+            T = np.arange(T_perc, 12.0, 0.1)
+            
+            estimate = FindCriticalTemp(g(), T, write_to_file=False)
+
+            T_low = max(T_perc, estimate - 0.4)
+            T_high = estimate + 0.4
+
+            print("Searching", g, "between", T_low, T_high)
+
+            T = np.arange(T_low, T_high, 0.005)
+
+            T_crit = TrialCriticalTemp(g, T=T, trial_length=100, settle_factor=15.0, E_samples=100, sample_step_factor=2.0)
+
+            print("Found", T_crit)
+            data += [(g, T_crit)]
