@@ -478,6 +478,8 @@ class TileGrid(IGrid):
 
         self.corecurse((self.rep, (orientation, r0, prev)), lambda rep, ret, orientation, r0, prev: self.rep.display(rep, ax, r, orientation, r0, prev))
 
+        ax.set_aspect('equal')
+
         if show:
             fig.show()
 
@@ -526,10 +528,11 @@ class Tile:
         for di in range(n):
             i = (i0 + di) % n
 
-            if self.neighs[i] is not None and self.neighs[i] != prev:
+            if self.neighs[i] is not None:
                 new_r = r0 + dr * orientation
                 
-                new += [(self.neighs[i], (orientation, new_r, self))]
+                if self.neighs[i] != prev:
+                    new += [(self.neighs[i], (orientation, new_r, self))]
 
                 ax.plot([self.r[0], new_r[0]], [self.r[1], new_r[1]], 'k-', zorder=3)
 

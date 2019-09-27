@@ -665,9 +665,9 @@ def HalfPlateExample():
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
 if __name__ == "__main__":
-    if True:
+    if False:
         ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,26), yAx=["C", "E", "CDens"])
-    else:
+    elif False:
         data = []
 
         from functools import partial
@@ -693,3 +693,5 @@ if __name__ == "__main__":
 
             print("Found", T_crit)
             data += [(g, T_crit)]
+    else:
+        ...
