@@ -254,6 +254,13 @@ def ShowAnimate(gridsize=300, redT = 5.0,
     return ani
     
 class DataFile:
+    """"
+    Class representing a file of data, here the data files as generated 
+    by FindCriticalTemp but often called through TrialCriticalTemp.
+    That function logs the different values at different reduced
+    temperatures, allowing us to extract different data afterwards 
+    without needing to run heavy calculations each time.
+    """
     def __init__(self, filename, loadData=True, **kwargs):
         self.filename = filename
         path = filename
@@ -273,8 +280,9 @@ class DataFile:
         self.LoadMetadata()
         if loadData:
             self.LoadData(True)
-            
+
     def LoadMetadata(self):
+        """Load parameters written to the files"""
         self.params = {}
         self.colNames = []
         with open(self.path, "r") as paramRead:
@@ -298,6 +306,7 @@ class DataFile:
         
         
     def LoadData(self, forceReload=False):
+        """Load the actual data in the file"""
         if not forceReload and self.data != None:
             return
         self.data = None
@@ -319,11 +328,15 @@ class DataFile:
             self.data = newData        
             
 def AsDataFile(f, **kwargs):
+    """If not already a DataFile, use the filename to load a DataFile"""
     if type(f) == DataFile:
         return f
     return DataFile(f)
 
 def GetElementwiseAvgStd(dataRefList, xAx, yAx):
+    """Calculate average and standard deviation of yAx columns in multiple 
+    curve data as specified in dataRefList, aligned to the same values of 
+    the column xAx."""
     dataAvg = None
     dataStd = None
     dataAvailableCount = None
@@ -369,7 +382,13 @@ def GetElementwiseAvgStd(dataRefList, xAx, yAx):
 
 def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=True,
                             xTicksInterval=0.5):
+    """Show data stored in subplots. Elements in filenames of type array will get
+    combined together into one curve with use of GetElementwiseAvgStd."""
+    
     if not showInSubplots:
+        """Show in separate plots by calling this function with one
+        yAx value each time, essentially creating subplots with one
+        row."""
         for yAxVal in yAx:
             LoadPhaseTransitionPlot(filenames, xAx, [yAxVal])
         return
@@ -386,6 +405,8 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
    
     balances = {}
     
+    """Curve colors will be specified to keep colors the same where
+    they should be."""
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     colorIndex = 0
     
@@ -394,6 +415,10 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
         curveDataLabel = ""
         if type(curveData) == str:
             curveData = [curveData]
+            
+        """Grouped files to be displayed in the same curve (see GetElementwiseAvgStd)
+        can be preceded by a string of the format "@{curveLabel}", allowing for a
+        meaningful curve label when shown."""
         if len(curveData) > 1:
             if curveData[0].startswith("@"):
                 curveDataLabel = curveData[0][1:]
@@ -405,11 +430,13 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
             
         dataFiles = [AsDataFile(filename) for filename in curveData]
         dataAvg, dataStd, dataAvailableCount = GetElementwiseAvgStd(dataFiles, xAx, yAx)
-    
+        
+        #Plot the different values (yAx) against xAx
         for j in range(0, len(yAx)):
             ax[j].plot(dataAvg[xAx], dataAvg[yAx[j]], label=curveDataLabel,
                   color=colors[colorIndex])
             if dataStd is not None:
+                #Use fill_between to show a band of the standard deviation
                 ax[j].fill_between(dataAvg[xAx], dataAvg[yAx[j]] - dataStd[yAx[j]], 
                   dataAvg[yAx[j]] + dataStd[yAx[j]],
                   color=colors[colorIndex], alpha=0.3)
@@ -421,6 +448,10 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
         ax[j].set_xlabel(xAx)
         ax[j].grid()
         xlim = ax[j].get_xlim()
+        """The default xticks can sometimes be unusefully far apart, if the 
+        parameter xTicksInterval is left on its default value or specified 
+        with a value other that None custom ticks will be set using the 
+        parameter value."""
         if xTicksInterval != None:
             baseValue = math.ceil(xlim[0] / xTicksInterval) * xTicksInterval
             values = np.arange(baseValue, xlim[1], xTicksInterval)
@@ -433,6 +464,10 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
     plt.show(block=False)
     
 class DataFileIter:
+    """
+    Iterate through the stored data files and allow filtering conditions for them.  
+    """
+    
     def __init__(self, timestampFrom = None, isTimestampUTC=False, extraConditions = []):
         if timestampFrom != None and not isTimestampUTC:
             self.timestampFrom = timestampFrom.replace(tzinfo=tz.tzlocal())
@@ -448,6 +483,7 @@ class DataFileIter:
         while True:
             fileName = next(self.fileIter)
             
+            #Require the file to be newer than the specified time.
             if self.timestampFrom != None and datetime.datetime.utcfromtimestamp(
                     os.path.getmtime("PhaseTransitionData/{}".format(fileName))).replace(tzinfo=tz.tzutc()) < self.timestampFrom:
                 continue
@@ -464,8 +500,9 @@ class DataFileIter:
             if allowed:
                 return dataFile        
             
-    
 def GroupGenRepr(**kwargs):
+    """Return groups of the data file according to its generation
+    type, e.g. group Create666_8_57023792_0.txt, Create666_8_65629215_0.txt under Create666_8."""
     groupings = {}
     
     for dataFile in DataFileIter(**kwargs):
@@ -480,9 +517,9 @@ def GroupGenRepr(**kwargs):
 
 def ShowPhaseTransitionNewerThan(timestampFrom = None, isTimestampUTC=False, extraConditions = [],
                                  **kwargs):
-    return LoadPhaseTransitionPlot(list(GroupGenRepr(timestampFrom=timestampFrom,
+    return LoadPhaseTransitionPlot(GroupGenRepr(timestampFrom=timestampFrom,
                                                      isTimestampUTC=isTimestampUTC,
-                                                     extraConditions=extraConditions)), **kwargs)
+                                                     extraConditions=extraConditions), **kwargs)
 
 def DoBalanceTest(balance = 1.0):
     TrialCriticalTemp(lambda seed: Create3636(20, seed), sample_step_factor=2.0 * balance,
@@ -500,8 +537,6 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
     m = []
     C = []
     
-    startTime = datetime.datetime.utcnow()
-
     for temp in T:
         grid.redT = temp
         #log.info(f"Calculating at temperature {temp:.3f}")
@@ -546,8 +581,6 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
         plt.show(block=False)
     critTempNaive = T[np.argmax(C)]
     
-    endTime = datetime.datetime.utcnow()
-
     if write_to_file:
         genRepr = grid.getGenRepr()
         i = 0
@@ -564,7 +597,6 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                    "trial_index": trial_index,
                    "trial_length": trial_length,
                    "crit_temp_naive": critTempNaive, "gridSize": grid.getSize()}
-                   #"simulation_start_time": startTime, "simulation_end_time": endTime}
 
         file.write("# PARAM_DICT {}\n".format(json.dumps(paramDict)))
         file.write(f"# CRIT_TEMP_NAIVE {critTempNaive:.4e}\n")
