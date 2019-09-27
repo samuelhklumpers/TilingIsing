@@ -657,7 +657,7 @@ def HalfPlateExample():
     ani.save("series.gif", writer=PillowWriter(fps=10))
 
 if __name__ == "__main__":
-    if False:
+    if True:
         ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,26), yAx=["C", "E", "CDens"])
     elif False:
         data = []

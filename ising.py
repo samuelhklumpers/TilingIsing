@@ -515,6 +515,8 @@ class TileGrid(IGrid):
         """Display this TileGrid"""
         if fig is None:
             fig = plt.figure()
+            
+        if ax is None:
             ax = fig.subplots()
 
         orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
