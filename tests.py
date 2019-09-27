@@ -9,6 +9,10 @@ import os
 from numpy import random
 from uncertainties import ufloat
 import json
+import datetime
+import math
+from dateutil import tz
+import errno
 
 def Create666(depth, seed=None):
     hex_constr = TilingConstraint(6)
@@ -292,9 +296,124 @@ def CreateSeries():
                                 repeat_delay=0)
 
     ani.save("series.gif", writer=PillowWriter(fps=10))
+    
+    
+class DataFile:
+    def __init__(self, filename, loadData=True, **kwargs):
+        self.filename = filename
+        path = filename
+        if not os.path.isfile(path) and not path.endswith(".txt"):
+            path = path + ".txt"
+        if not os.path.isfile(path):
+            path = "PhaseTransitionData/" + path
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                    errno.ENOENT, os.strerror(errno.ENOENT), filename)
+        self.path = path
+            
+        self.params = {}
+        self.colNames = []
+        self.data = None
+            
+        self.LoadMetadata()
+        if loadData:
+            self.LoadData(True)
+            
+    def LoadMetadata(self):
+        self.params = {}
+        self.colNames = []
+        with open(self.path, "r") as paramRead:
+            try:
+                nextLine = next(paramRead)
+            except StopIteration as err:
+                raise err
+            
+            while len(nextLine) > 0 and nextLine[0] == '#':
+                if nextLine.startswith("# FORMAT "):
+                    self.colNames = [a.strip() for a in nextLine[len("# FORMAT "):].split(",")]
+                if nextLine.startswith("# PARAM_DICT "):
+                    dictLine = nextLine[len("# PARAM_DICT "):]
+                    self.params.update(json.loads(dictLine))
+                nextLine = next(paramRead)
+        self.modifiedUTC = datetime.datetime.utcfromtimestamp(
+                    os.path.getmtime(self.path))
+        
+        #print("Params are {}".format(params))
+        #print("Colnames are {}".format(" | ".join(colNames)))
+        
+        
+    def LoadData(self, forceReload=False):
+        if not forceReload and self.data != None:
+            return
+        self.data = None
+        try:
+            self.data = np.genfromtxt(self.path, names=self.colNames, delimiter=",\t")
+        except ValueError as err:
+            raise err
+        if 'C' in self.data.dtype.fields and "gridSize" in self.params:
+            newData = np.zeros(self.data.shape, dtype=self.data.dtype.descr + [('CDens', np.float32)])
+            for fieldName in self.data.dtype.fields:
+                newData[fieldName] = self.data[fieldName]
+            newData['CDens'] = newData['C'] / self.params["gridSize"]
+            self.data = newData
+        if 'C' in self.data.dtype.fields:
+            newData = np.zeros(self.data.shape, dtype=self.data.dtype.descr + [('CNorm', np.float32)])
+            for fieldName in self.data.dtype.fields:
+                newData[fieldName] = self.data[fieldName]
+            newData['CNorm'] = newData['C'] / np.amax(newData['C'])
+            self.data = newData        
+            
+def AsDataFile(f, **kwargs):
+    if type(f) == DataFile:
+        return f
+    return DataFile(f)
 
+def GetElementwiseAvgStd(dataRefList, xAx, yAx):
+    dataAvg = None
+    dataStd = None
+    dataAvailableCount = None
+    
+    if len(dataRefList) < 2:
+        dataFile = AsDataFile(dataRefList[0])
+        dataAvg = None
+        dataStd = None
+        dataAvailableCount = np.ones(len(dataFile.data))
+        return (dataAvg, dataStd, dataAvailableCount)
+        
+    dataDict = {}
+    for dataRef in dataRefList:
+        dataFile = AsDataFile(dataRef)
+        data = dataFile.data
+        
+        for i in range(data.shape[0]):
+            try:
+                existingRow = dataDict[data[xAx][i]]
+            except KeyError:
+                existingRow = [[] for _ in range(len(yAx))] 
+            for j in range(len(yAx)):
+                existingRow[j] += [data[yAx[j]][i]]
+            dataDict[data[xAx][i]] = existingRow
+                        
+    dataAvg = np.zeros(len(dataDict), dtype=[(val, np.float32) for val in [*yAx, xAx]])
+    dataStd = np.zeros(len(dataDict), dtype=[(val, np.float32) for val in yAx])
+    dataAvailableCount = np.zeros(len(dataDict))
+    
+    index = 0
+    for val in sorted(dataDict.items()):
+        dataAvg[xAx][index] = val[0]
+        dataAvailableCount[index] = len(val[1][0])
+        for i in range(len(yAx)):
+            dataAvg[yAx[i]][index] = np.average(val[1][i])
+            dataStd[yAx[i]][index] = np.std(val[1][i])
+        index += 1
+    if index != len(dataDict):
+        raise Exception("Unexpected situation")
+    
+        
+    return (dataAvg, dataStd, dataAvailableCount)
 
-def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=True):
+def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=True,
+                            xTicksInterval=0.5):
     if not showInSubplots:
         for yAxVal in yAx:
             LoadPhaseTransitionPlot(filenames, xAx, [yAxVal])
@@ -309,42 +428,111 @@ def LoadPhaseTransitionPlot(filenames, xAx="T", yAx=["C", "E"], showInSubplots=T
         ax = [ax]
         
     matplotlib.rcParams.update({'font.size': 10})
+   
+    balances = {}
     
-    for filename in filenames:
-        path = filename
-        if not os.path.isfile(path) and not path.endswith(".txt"):
-            path = path + ".txt"
-        if not os.path.isfile(path):
-            path = "PhaseTransitionData/" + path
-        params = {}
-        colNames = []
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    colorIndex = 0
+    
+    for curveDataRaw in filenames:        
+        curveData = curveDataRaw
+        curveDataLabel = ""
+        if type(curveData) == str:
+            curveData = [curveData]
+        if len(curveData) > 1:
+            if curveData[0].startswith("@"):
+                curveDataLabel = curveData[0][1:]
+                curveData = curveData[1:]
+            else:
+                curveDataLabel = "a.o. {}".format(curveData[0])
+        else:
+            curveDataLabel = curveData[0]
             
-        with open(path, "r") as paramRead:
-            nextLine = next(paramRead)
-            while len(nextLine) > 0 and nextLine[0] == '#':
-                if nextLine.startswith("# FORMAT "):
-                    colNames = [a.strip() for a in nextLine[len("# FORMAT "):].split(",")]
-                if nextLine.startswith("# PARAM_DICT "):
-                    dictLine = nextLine[len("# PARAM_DICT "):]
-                    params.update(json.loads(dictLine))
-                nextLine = next(paramRead)
-        print("Params are {}".format(params))
-        print("Colnames are {}".format(" | ".join(colNames)))
-        
-        data = np.genfromtxt(path, names=colNames, delimiter=",\t")
+        dataFiles = [AsDataFile(filename) for filename in curveData]
+        dataAvg, dataStd, dataAvailableCount = GetElementwiseAvgStd(dataFiles, xAx, yAx)
+    
         for j in range(0, len(yAx)):
-            ax[j].plot(data[xAx], data[yAx[j]], label=filename)
-                
+            ax[j].plot(dataAvg[xAx], dataAvg[yAx[j]], label=curveDataLabel,
+                  color=colors[colorIndex])
+            if dataStd is not None:
+                ax[j].fill_between(dataAvg[xAx], dataAvg[yAx[j]] - dataStd[yAx[j]], 
+                  dataAvg[yAx[j]] + dataStd[yAx[j]],
+                  color=colors[colorIndex], alpha=0.3)
+        colorIndex = (colorIndex + 1) % len(colors)
+                            
     for j in range(0, len(yAx)):
         ax[j].legend()
         ax[j].set_ylabel(yAx[j])
         ax[j].set_xlabel(xAx)
+        ax[j].grid()
+        xlim = ax[j].get_xlim()
+        if xTicksInterval != None:
+            baseValue = math.ceil(xlim[0] / xTicksInterval) * xTicksInterval
+            values = np.arange(baseValue, xlim[1], xTicksInterval)
+            if values[0] - xlim[0] >= 0.1 * (xlim[1] - xlim[0]):
+                values = np.concatenate(([xlim[0]], values))
+            if xlim[1] - values[-1] >= 0.1 * (xlim[1] - xlim[0]):
+                values = np.concatenate((values, [xlim[1]]))
+            ax[j].set_xticks(values)
+            
     plt.show(block=False)
+    
+class DataFileIter:
+    def __init__(self, timestampFrom = None, isTimestampUTC=False, extraConditions = []):
+        if timestampFrom != None and not isTimestampUTC:
+            self.timestampFrom = timestampFrom.replace(tzinfo=tz.tzlocal())
+        else:
+            self.timestampFrom = timestampFrom.replace(tzinfo=tz.tzutc())
+        self.extraConditions = extraConditions
+            
+    def __iter__(self):
+        self.fileIter = iter(os.listdir("PhaseTransitionData/"))
+        return self
+        
+    def __next__(self):
+        while True:
+            fileName = next(self.fileIter)
+            
+            if self.timestampFrom != None and datetime.datetime.utcfromtimestamp(
+                    os.path.getmtime("PhaseTransitionData/{}".format(fileName))).replace(tzinfo=tz.tzutc()) < self.timestampFrom:
+                continue
+            
+            dataFile = AsDataFile(fileName)
+            
+            if self.extraConditions == None:
+                self.extraConditions = []
+            allowed = True
+            for cond in self.extraConditions:
+                if not cond(dataFile):
+                    allowed = False
+                    break
+            if allowed:
+                return dataFile        
+            
+    
+def GroupGenRepr(**kwargs):
+    groupings = {}
+    
+    for dataFile in DataFileIter(**kwargs):
+        genRepr = dataFile.params["genRepr"]
+        groupingCat = genRepr[:genRepr.find('_', genRepr.find('_') + 1)]
+        if groupingCat in groupings:
+            groupings[groupingCat] += [dataFile]
+        else:
+            groupings[groupingCat] = [dataFile]
+    return [["@{}".format(a[0]), *a[1]] for a in groupings.items()]
+    
 
+def ShowPhaseTransitionNewerThan(timestampFrom = None, isTimestampUTC=False, extraConditions = [],
+                                 **kwargs):
+    return LoadPhaseTransitionPlot(list(GroupGenRepr(timestampFrom=timestampFrom,
+                                                     isTimestampUTC=isTimestampUTC,
+                                                     extraConditions=extraConditions)), **kwargs)
 
 def DoBalanceTest(balance = 1.0):
     TrialCriticalTemp(lambda seed: Create3636(20, seed), sample_step_factor=2.0 * balance,
-                      E_samples=50/balance)
+                      E_samples=50/balance)   
+    
 
 def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                     E_samples=50, sample_step_factor=2.0, show=False,
@@ -353,6 +541,8 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
     E = []
     m = []
     C = []
+    
+    startTime = datetime.datetime.utcnow()
 
     for temp in T:
         grid.redT = temp
@@ -397,6 +587,8 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
         plt.legend()
         plt.show(block=False)
     critTempNaive = T[np.argmax(C)]
+    
+    endTime = datetime.datetime.utcnow()
 
     if write_to_file:
         genRepr = grid.getGenRepr()
@@ -414,6 +606,7 @@ def FindCriticalTemp(grid, T=np.linspace(1, 10), settle_factor=15,
                    "trial_index": trial_index,
                    "trial_length": trial_length,
                    "crit_temp_naive": critTempNaive, "gridSize": grid.getSize()}
+                   #"simulation_start_time": startTime, "simulation_end_time": endTime}
 
         file.write("# PARAM_DICT {}\n".format(json.dumps(paramDict)))
         file.write(f"# CRIT_TEMP_NAIVE {critTempNaive:.4e}\n")
@@ -553,9 +746,7 @@ def HalfPlateExample():
 
 if __name__ == "__main__":
     if True:
-        files = [a for a in os.listdir("PhaseTransitionData/")
-                if a.startswith("Create333333_10")]
-        LoadPhaseTransitionPlot(files)
+        ShowPhaseTransitionNewerThan(datetime.datetime(2019,9,26), yAx=["C", "E", "CDens"])
     else:
         data = []
 
