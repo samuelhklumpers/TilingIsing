@@ -95,7 +95,7 @@ class SquareGrid(IGrid):
         if dE > 0.0:
             chance = np.exp(-dE / self.redT) \
                         if self.redT != 0 else 0.0
-            accept = self.rand.random() < chance
+            accept = self.rand.rand() < chance
 
         if accept:
             self.grid[i, j] *= -1
@@ -242,7 +242,7 @@ class ExternalGrid:
         if dE > 0.0:
             chance = np.exp(-dE / T_red) \
                         if T_red != 0 else 0.0
-            accept = self.rand.random() < chance
+            accept = self.rand.rand() < chance
 
         if accept:
             self.t_callback(i, j, dE)
@@ -515,6 +515,8 @@ class TileGrid(IGrid):
         """Display this TileGrid"""
         if fig is None:
             fig = plt.figure()
+            
+        if ax is None:
             ax = fig.subplots()
 
         orientation = np.array([0, 1])    #mpl is ondersteboven, maar wij werken dubbel ondersteboven dus :/
@@ -586,7 +588,10 @@ class Tile:
                 if self.neighs[i] != prev:
                     new += [(self.neighs[i], (orientation, new_r, self))]
 
-                ax.plot([self.r[0], new_r[0]], [self.r[1], new_r[1]], 'k-', zorder=3)
+                if self.neighs[i].r is not None:
+                    ax.plot([self.r[0], self.neighs[i].r[0]], [self.r[1], self.neighs[i].r[1]], 'k-', zorder=3)
+                else:
+                    ax.plot([self.r[0], new_r[0]], [self.r[1], new_r[1]], 'k-', zorder=3)
 
             orientation = R.dot(orientation)
 
